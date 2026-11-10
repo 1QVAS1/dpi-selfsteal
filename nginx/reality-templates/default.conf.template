@@ -1,0 +1,87 @@
+# Режим «сайт-заглушка для REALITY» (scripts/reality.sh enable).
+#
+# Схема (как в инструкции «Всё на 443»):
+#
+#   Интернет :443 → Xray (3x-ui), инбаунд VLESS + REALITY, 0.0.0.0:443
+#        клиент с ключом REALITY → прокси
+#        все остальные (браузеры, сканеры, XHTTP-клиенты) → target = этот nginx
+#   nginx ${REALITY_TARGET_LISTEN} (настоящий сертификат Let's Encrypt, HTTP/2)
+#        /                     → сайт CHOKEPOINT
+#        ${XHTTP_PATH}  → Xray, инбаунд XHTTP ${XHTTP_UPSTREAM}   (если XHTTP_ENABLED=on)
+#        ${SUB_PATH}  / ${SUB_JSON_PATH} → подписка 3x-ui ${SUB_UPSTREAM} (если SUB_ENABLED=on)
+#
+# Контейнер работает в сети хоста (network_mode: host), поэтому 127.0.0.1 здесь —
+# это loopback сервера, где слушают Xray и 3x-ui. Порт 443 nginx НЕ занимает — он у Xray.
+# Переменные подставляются из .env встроенным envsubst образа nginx.
+
+# ---------- порт 80: выпуск сертификата и редирект ----------
+server {
+    listen 80;
+    listen [::]:80;
+    server_name ${DOMAIN};
+
+    include /etc/nginx/snippets/acme-and-health.conf;
+
+    location / {
+        return 301 https://${DOMAIN}$request_uri;
+    }
+}
+
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    server_name _;
+    include /etc/nginx/snippets/acme-and-health.conf;
+    location / { return 444; }
+}
+
+# ---------- target для REALITY: только loopback ----------
+server {
+    listen ${REALITY_TARGET_LISTEN} ssl;
+    http2 on;
+    server_name ${DOMAIN};
+
+    ssl_certificate     /etc/letsencrypt/live/${DOMAIN}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${DOMAIN}/privkey.pem;
+    ssl_trusted_certificate /etc/letsencrypt/live/${DOMAIN}/chain.pem;
+
+    ssl_stapling on;
+    ssl_stapling_verify on;
+    resolver 1.1.1.1 9.9.9.9 valid=300s ipv6=off;
+    resolver_timeout 5s;
+
+    # выключенные пути отвечают обычной страницей 404 сайта — как несуществующие
+    set $xhttp_enabled "${XHTTP_ENABLED}";
+    set $sub_enabled   "${SUB_ENABLED}";
+
+    # XHTTP → инбаунд Xray (Security: none, TLS делает nginx)
+    location ${XHTTP_PATH} {
+        if ($xhttp_enabled != "on") { return 404; }
+        client_max_body_size 0;
+        client_body_timeout 1h;
+        grpc_pass grpc://${XHTTP_UPSTREAM};
+        grpc_set_header Host $host;
+        grpc_set_header X-Real-IP $remote_addr;
+        grpc_read_timeout 1h;
+        grpc_send_timeout 1h;
+        grpc_buffer_size 16k;
+        grpc_socket_keepalive on;
+    }
+
+    # Подписка 3x-ui (обычная и JSON)
+    location ${SUB_PATH} {
+        if ($sub_enabled != "on") { return 404; }
+        proxy_pass http://${SUB_UPSTREAM};
+        proxy_set_header Host $host;
+        add_header Cache-Control "no-store" always;
+    }
+    location ${SUB_JSON_PATH} {
+        if ($sub_enabled != "on") { return 404; }
+        proxy_pass http://${SUB_UPSTREAM};
+        proxy_set_header Host $host;
+        add_header Cache-Control "no-store" always;
+    }
+
+    # Сайт-заглушка — тот же, что в обычном режиме
+    include /etc/nginx/snippets/site.conf;
+}

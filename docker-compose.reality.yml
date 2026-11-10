@@ -1,0 +1,27 @@
+# Режим «сайт-заглушка для REALITY». Подключается поверх docker-compose.yml:
+#   scripts/reality.sh enable     (пишет COMPOSE_FILE в .env — дальше обычный `docker compose …`)
+# или вручную:
+#   docker compose -f docker-compose.yml -f docker-compose.reality.yml up -d
+#
+# Отличия от обычного режима:
+#  - web работает в сети хоста: nginx слушает 0.0.0.0:80 и ${REALITY_TARGET_LISTEN} (loopback),
+#    а 443 остаётся свободным для Xray;
+#  - конфиг собирается из nginx/reality-templates/ (добавлены XHTTP и подписка 3x-ui).
+# Требуется Docker Compose ≥ 2.24.4 (тег !reset).
+
+services:
+  web:
+    network_mode: host
+    ports: !reset []
+    environment:
+      REALITY_TARGET_LISTEN: ${REALITY_TARGET_LISTEN:-127.0.0.1:9443}
+      XHTTP_ENABLED: ${XHTTP_ENABLED:-on}
+      XHTTP_PATH: ${XHTTP_PATH:?Задайте XHTTP_PATH в .env (scripts/reality.sh enable)}
+      XHTTP_UPSTREAM: ${XHTTP_UPSTREAM:-127.0.0.1:2023}
+      SUB_ENABLED: ${SUB_ENABLED:-on}
+      SUB_PATH: ${SUB_PATH:?Задайте SUB_PATH в .env (scripts/reality.sh enable)}
+      SUB_JSON_PATH: ${SUB_JSON_PATH:?Задайте SUB_JSON_PATH в .env (scripts/reality.sh enable)}
+      SUB_UPSTREAM: ${SUB_UPSTREAM:-127.0.0.1:2096}
+    volumes:
+      # тот же путь в контейнере → заменяет шаблон обычного режима
+      - ./nginx/reality-templates:/etc/nginx/templates:ro
