@@ -1,0 +1,48 @@
+# CHOKEPOINT — боевой режим: nginx + Let's Encrypt.
+# Переменные DOMAIN и LETSENCRYPT_EMAIL берутся из файла .env (см. .env.example).
+#
+#   ./scripts/init-letsencrypt.sh      # первичный выпуск сертификата
+#   docker compose up -d               # запуск
+#   ./scripts/cron.sh install          # автопродление через cron на хосте
+
+name: chokepoint
+
+services:
+  web:
+    image: nginx:alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:?Укажите DOMAIN в .env}
+    volumes:
+      - ./site:/usr/share/nginx/html:ro
+      - ./nginx/templates:/etc/nginx/templates:ro
+      - ./nginx/conf.d/00-http.conf:/etc/nginx/conf.d/00-http.conf:ro
+      - ./nginx/snippets:/etc/nginx/snippets:ro
+      - certbot-webroot:/var/www/certbot:ro
+      - letsencrypt:/etc/letsencrypt:ro
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # Одноразовый сервис: не стартует при `docker compose up`, только через
+  # `docker compose --profile certbot run --rm certbot …` (это делают скрипты).
+  certbot:
+    image: certbot/certbot
+    profiles: ["certbot"]
+    environment:
+      DOMAIN: ${DOMAIN:-}
+      LETSENCRYPT_EMAIL: ${LETSENCRYPT_EMAIL:-}
+    volumes:
+      - certbot-webroot:/var/www/certbot
+      - letsencrypt:/etc/letsencrypt
+      - ./scripts/selfsigned.py:/opt/chokepoint/selfsigned.py:ro
+
+volumes:
+  certbot-webroot:
+  letsencrypt:

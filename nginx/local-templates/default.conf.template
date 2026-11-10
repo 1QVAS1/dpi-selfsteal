@@ -1,0 +1,22 @@
+# Локальный режим: https://localhost:8443 с самоподписанным сертификатом.
+# Наружные порты (8080/8443) задаются в docker-compose.local.yml.
+
+server {
+    listen 80;
+    server_name localhost;
+    include /etc/nginx/snippets/acme-and-health.conf;
+    location / {
+        return 301 https://$host:${LOCAL_HTTPS_PORT}$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name localhost;
+
+    ssl_certificate     /etc/nginx/certs/localhost/fullchain.pem;
+    ssl_certificate_key /etc/nginx/certs/localhost/privkey.pem;
+
+    include /etc/nginx/snippets/site.conf;
+}

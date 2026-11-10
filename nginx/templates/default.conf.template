@@ -1,0 +1,45 @@
+# Боевой конфиг. Собирается из шаблона встроенным механизмом образа nginx:
+# /etc/nginx/templates/*.template → envsubst → /etc/nginx/conf.d/*.conf
+# Подставляется переменная ${DOMAIN} из .env.
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name ${DOMAIN};
+
+    include /etc/nginx/snippets/acme-and-health.conf;
+
+    location / {
+        return 301 https://${DOMAIN}$request_uri;
+    }
+}
+
+# Запросы на порт 80 с чужим Host (например, по IP): только ACME/healthz, иначе закрываем соединение
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+    server_name _;
+    include /etc/nginx/snippets/acme-and-health.conf;
+    location / { return 444; }
+}
+
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
+    server_name ${DOMAIN};
+
+    ssl_certificate     /etc/letsencrypt/live/${DOMAIN}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${DOMAIN}/privkey.pem;
+    ssl_trusted_certificate /etc/letsencrypt/live/${DOMAIN}/chain.pem;
+
+    # OCSP stapling. Внимание: Let's Encrypt в 2025 г. прекратил поддержку OCSP,
+    # и в новых сертификатах нет OCSP-адреса — тогда nginx пишет предупреждение
+    # «ssl_stapling ignored» и просто работает без stapling. Это безопасно.
+    ssl_stapling on;
+    ssl_stapling_verify on;
+    resolver 1.1.1.1 9.9.9.9 valid=300s ipv6=off;
+    resolver_timeout 5s;
+
+    include /etc/nginx/snippets/site.conf;
+}

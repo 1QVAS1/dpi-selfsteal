@@ -1,0 +1,643 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>CHOKEPOINT — информер о блокировках</title>
+  <meta name="description" content="Справочный сайт о DPI и ТСПУ: как устроена фильтрация интернет-трафика в России, на каком оборудовании она работает и что происходило в этой сфере в последние месяцы. Собрано из открытых источников.">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#0A0E12">
+  <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+  <link rel="preload" href="fonts/inter-cyrillic-400.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="fonts/jbmono-cyrillic-600.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="css/fonts.css">
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/scroll.css">
+  <script type="module" src="js/main.js"></script>
+</head>
+<body>
+<a class="skip-link" href="#main">Перейти к содержанию</a>
+
+<!-- Общие SVG-символы -->
+<svg class="sprite" aria-hidden="true" focusable="false">
+  <symbol id="logo-mark" viewBox="0 0 40 40">
+    <path class="lm-wall" d="M13 3 L22 17 H37 M13 37 L22 23 H37"/>
+    <path class="lm-dead" d="M3 9 H14.3 M3 31 H14.3"/>
+    <path class="lm-cut" d="M15.6 6.6 V11.4 M15.6 28.6 V33.4"/>
+    <path class="lm-flow" d="M3 16 C12 16 15 19 22 19 H37 M3 24 C12 24 15 21 22 21 H37"/>
+  </symbol>
+  <symbol id="ornament" viewBox="0 0 240 24">
+    <path d="M4 12 H92 M148 12 H236" fill="none" stroke="currentColor" stroke-width="1.2"/>
+    <path d="M92 12 C100 4 108 4 112 12 C108 20 100 20 92 12 Z M148 12 C140 4 132 4 128 12 C132 20 140 20 148 12 Z" fill="none" stroke="currentColor" stroke-width="1.2"/>
+    <path d="M120 3 L127 12 L120 21 L113 12 Z" fill="currentColor"/>
+    <circle cx="4" cy="12" r="2.2" fill="currentColor"/><circle cx="236" cy="12" r="2.2" fill="currentColor"/>
+    <circle cx="60" cy="12" r="1.4" fill="currentColor"/><circle cx="180" cy="12" r="1.4" fill="currentColor"/>
+  </symbol>
+</svg>
+
+<header class="topbar">
+  <button type="button" class="logo-btn" id="logo-btn" aria-label="CHOKEPOINT — наверх страницы">
+    <svg class="logo-mark" viewBox="0 0 40 40" aria-hidden="true" focusable="false"><use href="#logo-mark"/></svg>
+    <span class="logo-text" aria-hidden="true">CHOKEPOINT</span>
+  </button>
+  <nav class="topnav" aria-label="Разделы">
+    <ul>
+      <li><a href="#dpi">DPI</a></li>
+      <li><a href="#tspu">ТСПУ</a></li>
+      <li><a href="#hardware">Оборудование</a></li>
+      <li><a href="#timeline">Хронология</a></li>
+      <li><a href="#news">Новости</a></li>
+      <li><a href="#sources">Источники</a></li>
+    </ul>
+  </nav>
+</header>
+
+<main id="main">
+
+<!-- ============ HERO ============ -->
+<section class="hero" id="top" aria-labelledby="hero-title">
+  <canvas class="hero-canvas" id="hero-canvas" aria-hidden="true"></canvas>
+  <div class="hero-inner">
+    <p class="hero-kicker mono"><span class="dot dot-red" aria-hidden="true"></span> chokepoint <span class="muted">(англ.)</span> — «узкое место», через которое проходит весь трафик</p>
+    <h1 class="hero-title mono" id="hero-title">CHOKEPOINT</h1>
+    <p class="hero-sub mono">информер о блокировках</p>
+    <p class="hero-lead">Справочный сайт о том, как в России устроена фильтрация интернет-трафика: что такое DPI и ТСПУ, на каком оборудовании они работают и что происходило в этой сфере за последние полгода.</p>
+    <p class="hero-note" role="note"><span class="mono tag">i</span> Информация носит ознакомительный характер и собрана из открытых источников.</p>
+    <dl class="hero-meta mono">
+      <div><dt>актуально на</dt><dd><time datetime="2026-11-10">10.11.2026</time></dd></div>
+      <div><dt>источников</dt><dd><span id="src-count">—</span></dd></div>
+    </dl>
+    <a class="hero-cta mono" href="#dpi">начать с основ <span aria-hidden="true">↓</span></a>
+  </div>
+</section>
+
+<!-- ============ DPI ============ -->
+<section class="section" id="dpi" aria-labelledby="dpi-title">
+  <div class="wrap">
+    <header class="section-head reveal">
+      <p class="section-num mono">01 / основы</p>
+      <h2 id="dpi-title">Что такое DPI</h2>
+      <p class="section-lead"><dfn>Deep Packet Inspection</dfn> (DPI, «глубокая инспекция пакетов») — это любой анализ сетевых пакетов, выходящий за пределы IP-адреса и номера порта<a class="fn" href="#s10" aria-label="источник 10">[10]</a>. Обычный маршрутизатор читает только «конверт» пакета: откуда и куда он идёт. Устройство DPI смотрит на содержимое и поведение потока, чтобы определить, какой это протокол и к какому сервису обращается пользователь.</p>
+    </header>
+
+    <h3 class="sub-title reveal">Три уровня фильтрации</h3>
+    <div class="grid grid-3 cascade">
+      <article class="card reveal">
+        <p class="card-tag mono">уровень 1</p>
+        <h4>Блокировка по IP</h4>
+        <p>Пакеты к определённым адресам отбрасываются. Метод простой, но грубый: на общем хостинге и в CDN один адрес обслуживает множество сайтов, и под блокировку попадают посторонние ресурсы<a class="fn" href="#s10">[10]</a>.</p>
+        <p class="card-foot mono">смотрит на: <b>адрес назначения</b></p>
+      </article>
+      <article class="card reveal">
+        <p class="card-tag mono">уровень 2</p>
+        <h4>Вмешательство в DNS</h4>
+        <p>Когда устройство спрашивает адрес сайта по имени, ответ подменяется: возвращается неверный адрес или ошибка<a class="fn" href="#s10">[10]</a>. В России с 2021 года действуют положения закона о национальной системе доменных имён<a class="fn" href="#s1">[1]</a>; по данным СМИ, в 2026 году из неё исключили домены WhatsApp<a class="fn" href="#s59">[59]</a>.</p>
+        <p class="card-foot mono">смотрит на: <b>DNS-запрос</b></p>
+      </article>
+      <article class="card card-accent reveal">
+        <p class="card-tag mono">уровень 3</p>
+        <h4>DPI</h4>
+        <p>Решение принимается по содержимому и характеристикам трафика: имени сайта в рукопожатии, сигнатуре протокола, статистике потока. Это точнее, но требует больше вычислений — RFC 9505 называет DPI одним из самых затратных способов идентификации трафика<a class="fn" href="#s10">[10]</a>.</p>
+        <p class="card-foot mono">смотрит на: <b>содержимое и поведение</b></p>
+      </article>
+    </div>
+
+    <h3 class="sub-title reveal">Что DPI видит в TLS-рукопожатии</h3>
+    <div class="split">
+      <figure class="diagram reveal" id="fig-tls">
+        <svg viewBox="0 0 560 380" role="img" aria-labelledby="fig-tls-title fig-tls-desc">
+          <title id="fig-tls-title">Схема сообщения TLS ClientHello</title>
+          <desc id="fig-tls-desc">Сообщение ClientHello разбито на поля. Поле server_name с именем сайта, список поддерживаемых протоколов и параметры шифрования передаются открыто и видны DPI. После рукопожатия данные приложения зашифрованы. При использовании ECH имя сайта переносится в зашифрованную часть, а открытым остаётся только внешнее имя.</desc>
+          <g class="d-mono">
+            <text x="16" y="26" class="d-label">TLS ClientHello · клиент → сервер</text>
+            <text x="544" y="26" class="d-label d-end">видно DPI?</text>
+          </g>
+          <g class="d-rows">
+            <rect x="16" y="40" width="440" height="34" rx="4" class="d-box"/>
+            <text x="30" y="62" class="d-txt">record header · версия · длина</text>
+            <text x="530" y="62" class="d-yes">да</text>
+
+            <rect x="16" y="80" width="440" height="34" rx="4" class="d-box"/>
+            <text x="30" y="102" class="d-txt">random · session id</text>
+            <text x="530" y="102" class="d-yes">да</text>
+
+            <rect x="16" y="120" width="440" height="34" rx="4" class="d-box"/>
+            <text x="30" y="142" class="d-txt">cipher_suites · список шифров</text>
+            <text x="530" y="142" class="d-yes">да</text>
+
+            <rect x="16" y="160" width="440" height="40" rx="4" class="d-box d-hot"/>
+            <text x="30" y="185" class="d-txt">ext: server_name = <tspan class="d-hot-txt">"example.org"</tspan></text>
+            <text x="530" y="185" class="d-yes d-hot-txt">SNI</text>
+            <path d="M462 180 H500" class="d-arrow-red"/>
+
+            <rect x="16" y="206" width="440" height="34" rx="4" class="d-box"/>
+            <text x="30" y="228" class="d-txt">ext: alpn = h2, http/1.1 · key_share · …</text>
+            <text x="530" y="228" class="d-yes">да</text>
+
+            <rect x="16" y="262" width="440" height="40" rx="4" class="d-box d-enc"/>
+            <text x="30" y="287" class="d-txt d-dim">application data · ▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒</text>
+            <text x="530" y="287" class="d-no">нет</text>
+          </g>
+          <g class="d-mono">
+            <text x="16" y="330" class="d-label">с расширением ECH:</text>
+            <text x="16" y="352" class="d-txt">outer SNI = <tspan class="d-cyan">"public.example"</tspan>  ·  inner ClientHello = <tspan class="d-dim">▒▒▒▒▒▒▒▒</tspan></text>
+          </g>
+        </svg>
+        <figcaption>Упрощённая схема. Поля рукопожатия передаются до установки шифрования, поэтому промежуточное устройство может их прочитать<a class="fn" href="#s10">[10]</a>; ECH шифрует внутренний ClientHello<a class="fn" href="#s11">[11]</a>.</figcaption>
+      </figure>
+
+      <div class="features cascade">
+        <article class="feature reveal">
+          <h4><span class="mono feat-k">SNI</span> Имя сайта в рукопожатии</h4>
+          <p>В начале TLS-соединения клиент отправляет ClientHello, где поле Server Name Indication обычно передаётся открытым текстом. По нему можно определить домен и заблокировать, отфильтровать или замедлить соединение<a class="fn" href="#s10">[10]</a>. Расширение Encrypted Client Hello (ECH) шифрует эту часть<a class="fn" href="#s11">[11]</a>; в России соединения с ECH к адресам Cloudflare начали блокировать в ноябре 2024 года (по данным СМИ)<a class="fn" href="#s40">[40]</a><a class="fn" href="#s15">[15]</a>.</p>
+        </article>
+        <article class="feature reveal">
+          <h4><span class="mono feat-k">QUIC</span> Новые протоколы</h4>
+          <p>В QUIC (основа HTTP/3) первые пакеты рукопожатия защищены ключами, выведенными из публичных данных, поэтому SNI в них тоже читаем. По данным исследователей, российские ТСПУ перешли к блокировке QUIC по SNI между маем 2022 и июлем 2023 года — как минимум на девять месяцев раньше китайского файрвола<a class="fn" href="#s14">[14]</a>.</p>
+        </article>
+        <article class="feature reveal">
+          <h4><span class="mono feat-k">SIG</span> Сигнатуры протоколов</h4>
+          <p>У каждого протокола есть узнаваемая структура сообщений. По ней DPI определяет протокол, даже если тот работает на нестандартном порту<a class="fn" href="#s10">[10]</a>.</p>
+        </article>
+        <article class="feature reveal">
+          <h4><span class="mono feat-k">FLOW</span> Поведенческий анализ</h4>
+          <p>Если содержимое зашифровано, остаются косвенные признаки: размеры и интервалы пакетов, статистика потока. По ним трафик тоже можно классифицировать<a class="fn" href="#s10">[10]</a>.</p>
+        </article>
+        <article class="feature feature-red reveal">
+          <h4><span class="mono feat-k">SLOW</span> Замедление</h4>
+          <p>Вместо блокировки соединение намеренно ухудшают: сервис формально доступен, но пользователю сложно отличить это от обычной перегрузки сети<a class="fn" href="#s10">[10]</a><a class="fn" href="#s12">[12]</a>. В марте 2021 года так замедляли Twitter: устройства находили домены сервиса в SNI и ограничивали скорость до 130–150 кбит/с, отбрасывая пакеты<a class="fn" href="#s12">[12]</a>.</p>
+        </article>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ ТСПУ ============ -->
+<section class="section section-alt" id="tspu" aria-labelledby="tspu-title">
+  <div class="wrap">
+    <header class="section-head reveal">
+      <p class="section-num mono">02 / система</p>
+      <h2 id="tspu-title">Что такое ТСПУ</h2>
+      <p class="section-lead"><dfn>ТСПУ</dfn> — «технические средства противодействия угрозам». Так закон называет оборудование, которое операторы связи обязаны установить в своих сетях и которое передаётся им государством безвозмездно<a class="fn" href="#s1">[1]</a>. По описанию исследователей, это DPI-устройства, находящиеся под централизованным управлением Роскомнадзора, а не провайдеров<a class="fn" href="#s12">[12]</a>.</p>
+    </header>
+
+    <figure class="diagram diagram-wide reveal" id="fig-path">
+      <svg viewBox="0 0 960 300" role="img" aria-labelledby="fig-path-title fig-path-desc">
+        <title id="fig-path-title">Путь пакета: пользователь, провайдер, ТСПУ, интернет</title>
+        <desc id="fig-path-desc">Пакет от пользователя попадает в сеть провайдера, затем проходит через ТСПУ, установленное в разрыв канала внутри сети оператора, и только потом уходит в интернет. ТСПУ управляется централизованно из Центра мониторинга и управления сетью связи общего пользования. Часть соединений ТСПУ пропускает, часть блокирует или замедляет.</desc>
+        <defs>
+          <marker id="arr-c" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 Z" class="d-fill-cyan"/></marker>
+          <marker id="arr-g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 Z" class="d-fill-muted"/></marker>
+        </defs>
+        <!-- зона оператора -->
+        <rect x="200" y="96" width="460" height="176" rx="10" class="d-zone"/>
+        <text x="216" y="262" class="d-label">сеть оператора связи</text>
+        <!-- узлы -->
+        <g class="d-node">
+          <rect x="24" y="140" width="140" height="64" rx="8"/>
+          <text x="94" y="168" class="d-txt d-mid">пользователь</text>
+          <text x="94" y="190" class="d-sub d-mid">телефон · ПК</text>
+        </g>
+        <g class="d-node">
+          <rect x="230" y="140" width="150" height="64" rx="8"/>
+          <text x="305" y="168" class="d-txt d-mid">провайдер</text>
+          <text x="305" y="190" class="d-sub d-mid">сеть доступа</text>
+        </g>
+        <g class="d-node d-node-red">
+          <rect x="470" y="128" width="160" height="88" rx="8"/>
+          <text x="550" y="160" class="d-txt d-mid d-red-txt">ТСПУ</text>
+          <text x="550" y="182" class="d-sub d-mid">DPI «в разрыв»</text>
+          <text x="550" y="200" class="d-sub d-mid">in-path · stateful</text>
+        </g>
+        <g class="d-node">
+          <rect x="760" y="140" width="176" height="64" rx="8"/>
+          <text x="848" y="168" class="d-txt d-mid">интернет</text>
+          <text x="848" y="190" class="d-sub d-mid">магистраль · сайты</text>
+        </g>
+        <g class="d-node d-node-dim">
+          <rect x="450" y="16" width="200" height="56" rx="8"/>
+          <text x="550" y="40" class="d-txt d-mid">ЦМУ ССОП</text>
+          <text x="550" y="60" class="d-sub d-mid">централизованное управление</text>
+        </g>
+        <!-- связи -->
+        <path d="M164 172 H226" class="d-link" marker-end="url(#arr-c)"/>
+        <path d="M380 172 H466" class="d-link" marker-end="url(#arr-c)"/>
+        <path d="M630 160 H756" class="d-link" marker-end="url(#arr-c)"/>
+        <path d="M630 186 H690" class="d-link-red"/>
+        <path d="M684 178 L698 194 M698 178 L684 194" class="d-x"/>
+        <text x="640" y="240" class="d-sub d-red-txt">блок / замедление</text>
+        <path d="M550 72 V124" class="d-ctrl" marker-end="url(#arr-g)"/>
+        <!-- пакеты -->
+        <circle class="pkt pkt-1" cx="0" cy="0" r="4"/>
+        <circle class="pkt pkt-2" cx="0" cy="0" r="4"/>
+      </svg>
+      <figcaption>По измерениям 2022 года, ТСПУ стоят близко к пользователям, а не на границе страны: в 70% случаев — не дальше двух сетевых переходов от абонента<a class="fn" href="#s13">[13]</a>.</figcaption>
+    </figure>
+
+    <div class="grid grid-2 cascade">
+      <article class="card reveal">
+        <p class="card-tag mono">правовая основа</p>
+        <h3>Закон о «суверенном интернете»</h3>
+        <ul class="facts">
+          <li><b>Федеральный закон от 01.05.2019 № 90-ФЗ</b> внёс изменения в законы «О связи» (126-ФЗ) и «Об информации…» (149-ФЗ). Госдума приняла его 16.04.2019, основная часть вступила в силу <b>1 ноября 2019 года</b><a class="fn" href="#s1">[1]</a><a class="fn" href="#s2">[2]</a>.</li>
+          <li><b>П. 5.1 ст. 46 126-ФЗ</b>: операторы, оказывающие услуги доступа в интернет, обязаны обеспечить установку ТСПУ в своей сети<a class="fn" href="#s1">[1]</a>.</li>
+          <li><b>Ст. 65.1 126-ФЗ</b>: ТСПУ предоставляются операторам безвозмездно; при угрозах устойчивости, безопасности и целостности работы интернета возможно централизованное управление сетью связи общего пользования<a class="fn" href="#s1">[1]</a><a class="fn" href="#s3">[3]</a>.</li>
+          <li>Положения о национальной системе доменных имён вступили в силу с 1 января 2021 года<a class="fn" href="#s1">[1]</a>.</li>
+          <li>Технические условия установки утверждены приказом Роскомнадзора от 19.02.2024 № 25<a class="fn" href="#s5">[5]</a>; новые Правила централизованного управления сетью — постановлением Правительства от 27.10.2025 № 1667, действуют с 1 марта 2026 года<a class="fn" href="#s6">[6]</a>.</li>
+        </ul>
+      </article>
+      <article class="card reveal">
+        <p class="card-tag mono">кто управляет</p>
+        <h3>Роскомнадзор и ЦМУ ССОП</h3>
+        <ul class="facts">
+          <li><b>Центр мониторинга и управления сетью связи общего пользования</b> (ЦМУ ССОП) создан постановлением Правительства от 13.02.2019 № 136 как подразделение ФГУП «ГРЧЦ», подведомственного Роскомнадзору<a class="fn" href="#s4">[4]</a><a class="fn" href="#s36">[36]</a>.</li>
+          <li>Закон относит центр к радиочастотной службе и поручает ему мониторинг и управление сетью при угрозах<a class="fn" href="#s1">[1]</a>.</li>
+          <li>По данным исследователей, ТСПУ находятся под централизованным управлением Роскомнадзора, в отличие от собственных DPI провайдеров<a class="fn" href="#s12">[12]</a>. Представитель отрасли говорил, что операторы оборудование не контролируют (по данным СМИ)<a class="fn" href="#s38">[38]</a>.</li>
+          <li>Помимо ограничения доступа, на ТСПУ развёрнута система противодействия DDoS-атакам: по данным РКН, за 10 месяцев 2026 года она отразила 20 115 атак<a class="fn" href="#s49">[49]</a>.</li>
+        </ul>
+      </article>
+      <article class="card reveal">
+        <p class="card-tag mono">где установлено</p>
+        <h3>В сетях операторов</h3>
+        <ul class="facts">
+          <li>Исследование 2022 года обнаружило ТСПУ на пути к более чем 1 млн конечных точек в 650 автономных системах<a class="fn" href="#s13">[13]</a>.</li>
+          <li>Устройства стоят «в разрыв» (in-path), отслеживают состояние соединений и вмешиваются в соединения, инициированные изнутри России<a class="fn" href="#s13">[13]</a>.</li>
+          <li>По заявлению РКН, с 2023 года операторы обязаны пропускать через ТСПУ весь интернет-трафик; за нарушения порядка использования ТСПУ суды штрафовали операторов<a class="fn" href="#s46">[46]</a>.</li>
+        </ul>
+      </article>
+      <article class="card reveal">
+        <p class="card-tag mono">масштаб и бюджет</p>
+        <h3>Плановые показатели</h3>
+        <ul class="facts">
+          <li>По данным СМИ, на модернизацию ТСПУ в 2025–2030 годах предусмотрено 58,97 млрд руб. федерального бюджета с целью довести пропускную способность до 725,6 Тбит/с<a class="fn" href="#s39">[39]</a>.</li>
+          <li>Позднее, также по данным СМИ, ориентир повышен до 954 Тбит/с к 2030 году; к концу 2026 года ожидается обработка 100% интернет-трафика страны<a class="fn" href="#s46">[46]</a><a class="fn" href="#s48">[48]</a>.</li>
+          <li class="muted">Это плановые цифры, а не отчёт об исполнении. Официальных данных о числе установленных устройств в открытых источниках найти не удалось.</li>
+        </ul>
+      </article>
+    </div>
+
+    <h3 class="sub-title reveal">Этапы развития</h3>
+    <ol class="stages cascade">
+      <li class="reveal"><span class="mono stage-y">2019</span><b>Закон и центр управления.</b> Принят 90-ФЗ, создан ЦМУ ССОП<a class="fn" href="#s1">[1]</a><a class="fn" href="#s4">[4]</a>.</li>
+      <li class="reveal"><span class="mono stage-y">2019–2021</span><b>Развёртывание.</b> По оценке исследователей, путь от замысла до развёртывания занял около трёх лет<a class="fn" href="#s13">[13]</a>.</li>
+      <li class="reveal"><span class="mono stage-y">2021</span><b>Первое масштабное применение.</b> Замедление Twitter; РКН позже подтвердил, что оно выполнялось с помощью ТСПУ<a class="fn" href="#s12">[12]</a><a class="fn" href="#s13">[13]</a>.</li>
+      <li class="reveal"><span class="mono stage-y">2022</span><b>Широкое покрытие.</b> ТСПУ обнаружены в 650 автономных системах; массовые блокировки сервисов и СМИ<a class="fn" href="#s13">[13]</a><a class="fn" href="#s17">[17]</a>.</li>
+      <li class="reveal"><span class="mono stage-y">2023</span><b>Весь трафик через ТСПУ.</b> По заявлению РКН, операторы обязаны пропускать через ТСПУ весь интернет-трафик<a class="fn" href="#s46">[46]</a>.</li>
+      <li class="reveal"><span class="mono stage-y">2024–2026</span><b>Модернизация.</b> Федеральный проект с бюджетом около 59 млрд руб., новые Правила централизованного управления сетью<a class="fn" href="#s39">[39]</a><a class="fn" href="#s6">[6]</a>.</li>
+    </ol>
+  </div>
+</section>
+
+<!-- ============ ОБОРУДОВАНИЕ ============ -->
+<section class="section" id="hardware" aria-labelledby="hw-title">
+  <div class="wrap">
+    <header class="section-head reveal">
+      <p class="section-num mono">03 / железо и софт</p>
+      <h2 id="hw-title">Оборудование и ПО</h2>
+      <p class="section-lead">Официального перечня поставщиков ТСПУ нет. Ниже — то, что известно из научных работ, документов закупок и журналистских расследований. Пометка <span class="badge badge-media">СМИ</span> означает, что факт подтверждён только публикациями в прессе.</p>
+    </header>
+
+    <h3 class="sub-title reveal">Россия: из чего состоит ТСПУ</h3>
+    <div class="table-wrap reveal">
+      <table class="hw-table">
+        <caption class="visually-hidden">Компоненты ТСПУ и их поставщики по открытым источникам</caption>
+        <thead>
+          <tr><th scope="col">Компонент</th><th scope="col">Поставщик / продукт</th><th scope="col">Что известно</th><th scope="col">Источник</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th scope="row">ПО фильтрации и DPI</th>
+            <td><b>RDP.RU</b> — EcoFilter, EcoDPI</td>
+            <td>Исследователи называют RDP.RU разработчиком DPI-устройств ТСПУ по заказу Роскомнадзора. По данным СМИ, компания на 100% принадлежит АО «Градиент» — структуре «Ростелекома»; в 2020 году, по данным СМИ, РКН требовал от провайдеров ставить за свой счёт для фильтрации по реестру именно EcoFilter, хотя одобрил 13 производителей. <span class="badge badge-media">СМИ</span></td>
+            <td class="mono"><a class="fn" href="#s12">[12]</a><a class="fn" href="#s30">[30]</a><a class="fn" href="#s36">[36]</a><a class="fn" href="#s44">[44]</a></td>
+          </tr>
+          <tr>
+            <th scope="row">Интегратор</th>
+            <td><b>АО «ДЦОА»</b></td>
+            <td>Названо единственным интегратором при внедрении ТСПУ на сетях операторов. В июне 2026 года объявило закупку не менее 154 серверов с начальной ценой 1,31 млрд руб. <span class="badge badge-media">СМИ</span></td>
+            <td class="mono"><a class="fn" href="#s44">[44]</a><a class="fn" href="#s48">[48]</a></td>
+          </tr>
+          <tr>
+            <th scope="row">Серверы</th>
+            <td><b>YADRO</b> (серверы Vegman); ранее <b>Huawei</b> FusionServer</td>
+            <td>Серверы под ПО DPI с 2022 года — YADRO; в более ранних закупках упоминаются серверы Huawei. <span class="badge badge-media">СМИ</span></td>
+            <td class="mono"><a class="fn" href="#s35">[35]</a><a class="fn" href="#s36">[36]</a></td>
+          </tr>
+          <tr>
+            <th scope="row">Коммутаторы</th>
+            <td><b>«Элтекс»</b></td>
+            <td>Упоминается как поставщик коммутаторов. <span class="badge badge-media">СМИ</span></td>
+            <td class="mono"><a class="fn" href="#s35">[35]</a><a class="fn" href="#s36">[36]</a></td>
+          </tr>
+          <tr>
+            <th scope="row">Защищённое управление</th>
+            <td><b>«Код Безопасности»</b> («Континент»)</td>
+            <td>Криптошлюз для удалённого управления устройствами. <span class="badge badge-media">СМИ</span></td>
+            <td class="mono"><a class="fn" href="#s35">[35]</a><a class="fn" href="#s36">[36]</a></td>
+          </tr>
+          <tr>
+            <th scope="row">Bypass-модули</th>
+            <td>Ранее <b>Silicom</b> (Израиль), затем <b>«Булат»</b></td>
+            <td>Обеспечивают пропуск трафика при отказе устройства. Поддержка Silicom, по данным СМИ, прекращена в 2022 году. <span class="badge badge-media">СМИ</span></td>
+            <td class="mono"><a class="fn" href="#s35">[35]</a><a class="fn" href="#s36">[36]</a></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note reveal">По данным The Insider (2023), все компоненты ТСПУ импортные, а в России выполняются сборка и установка ПО; по данным CNews (2024), уровень локализации остаётся низким<a class="fn" href="#s35">[35]</a><a class="fn" href="#s36">[36]</a>. Не путайте ТСПУ с другими системами: коммерческие DPI операторов (например, «СКАТ DPI» от VAS Experts) используются для фильтрации по реестру<a class="fn" href="#s55">[55]</a>, а оборудование СОРМ («Цитадель», «МФИ Софт») предназначено для законного перехвата; эти компании с 24.02.2023 находятся под санкциями США<a class="fn" href="#s8">[8]</a>.</p>
+
+    <h3 class="sub-title reveal">Мир: для сравнения</h3>
+    <div class="grid grid-3 cascade world">
+      <article class="card reveal">
+        <p class="card-tag mono">Китай</p>
+        <h4>Geedge Networks · MESA Lab</h4>
+        <p>В сентябре 2025 года утекли сотни гигабайт документов и кода компании, связанной с «Великим китайским файрволом». Анализ кода, принятый на USENIX Security 2026, заключает, что этот код или его производная работает в составе файрвола<a class="fn" href="#s19">[19]</a><a class="fn" href="#s21">[21]</a>.</p>
+        <p class="card-foot mono">экспорт: Мьянма, Пакистан, Эфиопия, Казахстан<a class="fn" href="#s19">[19]</a><a class="fn" href="#s20">[20]</a></p>
+      </article>
+      <article class="card reveal">
+        <p class="card-tag mono">Пакистан</p>
+        <h4>Web Monitoring System</h4>
+        <p>По данным Amnesty International, первая версия системы (2018) работала на технологиях Sandvine, а в 2023 году её заменила WMS 2.0 на технологиях Geedge Networks<a class="fn" href="#s26">[26]</a>.</p>
+        <p class="card-foot mono">вендоры: Sandvine → Geedge</p>
+      </article>
+      <article class="card reveal">
+        <p class="card-tag mono">Мьянма</p>
+        <h4>Geedge Networks</h4>
+        <p>Justice For Myanmar описывает внедрение коммерческой версии китайского файрвола через 13 телеком-компаний страны<a class="fn" href="#s27">[27]</a>.</p>
+        <p class="card-foot mono">масштаб: 13 операторов</p>
+      </article>
+      <article class="card reveal">
+        <p class="card-tag mono">Иран</p>
+        <h4>ZTE</h4>
+        <p>По данным Reuters (2012), ZTE поставила государственному оператору TCI систему мониторинга связи с функциями DPI по контракту на 98,6 млн евро. В 2026 году в стране действовало отключение интернета длительностью 88 дней<a class="fn" href="#s50">[50]</a><a class="fn" href="#n2">[н2]</a>.</p>
+        <p class="card-foot mono">вендор: ZTE <span class="badge badge-media">СМИ</span></p>
+      </article>
+      <article class="card reveal">
+        <p class="card-tag mono">Турция · Египет · Сирия</p>
+        <h4>Sandvine PacketLogic</h4>
+        <p>Citizen Lab в 2018 году нашла устройства PacketLogic, через которые пользователей перенаправляли на заражённые загрузки и рекламу. В 2024 году Минторг США внёс Sandvine в Entity List из-за поставок в Египет; в октябре того же года компания сообщила об исключении из списка<a class="fn" href="#s22">[22]</a><a class="fn" href="#s52">[52]</a><a class="fn" href="#s53">[53]</a>.</p>
+        <p class="card-foot mono">вендор: Sandvine (Канада)</p>
+      </article>
+      <article class="card reveal">
+        <p class="card-tag mono">Беларусь</p>
+        <h4>Sandvine</h4>
+        <p>По данным Bloomberg, в августе 2020 года для блокировок во время выборов использовалось оборудование Sandvine; затем компания расторгла белорусский контракт<a class="fn" href="#s51">[51]</a>.</p>
+        <p class="card-foot mono">вендор: Sandvine <span class="badge badge-media">СМИ</span></p>
+      </article>
+      <article class="card reveal">
+        <p class="card-tag mono">Казахстан</p>
+        <h4>Государственный сертификат</h4>
+        <p>В 2019 году пользователей обязывали установить корневой сертификат, что позволяло перехватывать HTTPS; браузеры его заблокировали. В 2024 году OONI вновь зафиксировал перехват TLS как минимум в 19 сетях<a class="fn" href="#s24">[24]</a><a class="fn" href="#s25">[25]</a>.</p>
+        <p class="card-foot mono">метод: TLS MITM</p>
+      </article>
+      <article class="card reveal">
+        <p class="card-tag mono">Сирия</p>
+        <h4>Blue Coat</h4>
+        <p>В 2010–2011 годах дистрибьютор поставил в Сирию устройства Blue Coat и в 2013 году согласился заплатить 2,8 млн долл. штрафа Минторгу США<a class="fn" href="#s54">[54]</a>.</p>
+        <p class="card-foot mono">вендор: Blue Coat (США)</p>
+      </article>
+      <article class="card reveal">
+        <p class="card-tag mono">30 стран</p>
+        <h4>Netsweeper</h4>
+        <p>Citizen Lab обнаружила фильтрующие системы канадской Netsweeper в 30 странах и подробно описала 10 из них, где они стоят у крупных провайдеров<a class="fn" href="#s23">[23]</a>.</p>
+        <p class="card-foot mono">вендор: Netsweeper (Канада)</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ============ ХРОНОЛОГИЯ ============ -->
+<section class="section section-alt" id="timeline" aria-labelledby="tl-title">
+  <div class="wrap">
+    <header class="section-head reveal">
+      <p class="section-num mono">04 / хронология</p>
+      <h2 id="tl-title">Ключевые события</h2>
+      <p class="section-lead">От единого реестра 2012 года до замедления мессенджеров в 2026-м. <span class="legend"><span class="dot dot-red" aria-hidden="true"></span> ограничение доступа</span> <span class="legend"><span class="dot dot-cyan" aria-hidden="true"></span> закон, документ, исследование</span></p>
+    </header>
+    <ol class="timeline" id="timeline-list">
+      <li class="tl-item reveal"><time class="mono" datetime="2012-07-28">28.07.2012</time><h3>Единый реестр запрещённой информации</h3><p>Закон № 139-ФЗ вводит реестр, который ведёт Роскомнадзор; он начал работать 1 ноября 2012 года<a class="fn" href="#s7">[7]</a><a class="fn" href="#s28">[28]</a>.</p></li>
+      <li class="tl-item tl-block reveal"><time class="mono" datetime="2018-04-13">13.04.2018</time><h3>Попытка заблокировать Telegram</h3><p>Суд удовлетворил иск РКН, и ведомство начало блокировать IP-адреса, однако мессенджер в целом оставался доступен (по данным СМИ). Ограничения сняли 18.06.2020<a class="fn" href="#s29">[29]</a>.</p></li>
+      <li class="tl-item reveal"><time class="mono" datetime="2019-02-13">13.02.2019</time><h3>Создан ЦМУ ССОП</h3><p>Центр мониторинга и управления сетью создан при ГРЧЦ<a class="fn" href="#s4">[4]</a>.</p></li>
+      <li class="tl-item reveal"><time class="mono" datetime="2019-11-01">01.11.2019</time><h3>Вступил в силу закон о «суверенном интернете»</h3><p>90-ФЗ подписан 01.05.2019 и обязал операторов устанавливать ТСПУ<a class="fn" href="#s1">[1]</a>.</p></li>
+      <li class="tl-item tl-block reveal"><time class="mono" datetime="2021-03-10">10.03.2021</time><h3>Замедление Twitter</h3><p>Первое масштабное применение ТСПУ: по заявлению РКН, на 100% мобильных и 50% стационарных устройств; по измерениям, срабатывало на домены сервиса в SNI<a class="fn" href="#s31">[31]</a><a class="fn" href="#s12">[12]</a>.</p></li>
+      <li class="tl-item tl-block reveal"><time class="mono" datetime="2021-12-01">01.12.2021</time><h3>Блокировка Tor</h3><p>Часть провайдеров начала блокировать сеть Tor; 07.12 сайт проекта внесён в реестр<a class="fn" href="#s16">[16]</a>.</p></li>
+      <li class="tl-item tl-block reveal"><time class="mono" datetime="2022-03-04">03.2022</time><h3>Блокировки соцсетей и СМИ</h3><p>Заблокированы Facebook и Twitter (около 04.03), Instagram (14.03) и десятки СМИ. За 2022 год в реестр внесено рекордное число URL — более 247 тысяч<a class="fn" href="#s17">[17]</a><a class="fn" href="#s32">[32]</a>.</p></li>
+      <li class="tl-item reveal"><time class="mono" datetime="2022-10-25">10.2022</time><h3>Первое академическое исследование ТСПУ</h3><p>Статья на конференции IMC описала устройство и размещение системы<a class="fn" href="#s13">[13]</a>.</p></li>
+      <li class="tl-item tl-block reveal"><time class="mono" datetime="2023-08-07">07.08.2023</time><h3>Сбои VPN-протоколов</h3><p>У крупных мобильных операторов массово перестали работать распространённые VPN-протоколы; РКН ситуацию не комментировал (по данным СМИ)<a class="fn" href="#s33">[33]</a><a class="fn" href="#s34">[34]</a>.</p></li>
+      <li class="tl-item tl-block reveal"><time class="mono" datetime="2024-07">07.2024</time><h3>Замедление YouTube</h3><p>Официально снижение скорости объясняли деградацией серверов Google Global Cache; в августе ГРЧЦ потребовал от операторов не мешать работе ТСПУ (по данным СМИ)<a class="fn" href="#s37">[37]</a><a class="fn" href="#s38">[38]</a>.</p></li>
+      <li class="tl-item tl-block reveal"><time class="mono" datetime="2024-09">09.2024</time><h3>Заблокирован OONI Explorer</h3><p>Недоступным стал открытый архив измерений интернет-цензуры<a class="fn" href="#s18">[18]</a>.</p></li>
+      <li class="tl-item tl-block reveal"><time class="mono" datetime="2024-11">11.2024</time><h3>Блокировка ECH</h3><p>Соединения с Encrypted Client Hello к адресам Cloudflare начали блокировать (по данным СМИ и исследователей)<a class="fn" href="#s40">[40]</a><a class="fn" href="#s15">[15]</a>.</p></li>
+      <li class="tl-item tl-block reveal"><time class="mono" datetime="2025-07">05–07.2025</time><h3>Отключения мобильного интернета</h3><p>Число региональных отключений, по подсчётам проекта «На связи», выросло с 69 в мае до 2099 в июле (по данным СМИ)<a class="fn" href="#s41">[41]</a><a class="fn" href="#s56">[56]</a>.</p></li>
+      <li class="tl-item tl-block reveal"><time class="mono" datetime="2025-08-13">13.08.2025</time><h3>Ограничение звонков в мессенджерах</h3><p>РКН объявил о частичном ограничении звонков в Telegram и WhatsApp<a class="fn" href="#s42">[42]</a>.</p></li>
+      <li class="tl-item reveal"><time class="mono" datetime="2025-09-05">05.09.2025</time><h3>«Белые списки»</h3><p>Минцифры опубликовало перечень сервисов, которые остаются доступны при ограничениях мобильного интернета<a class="fn" href="#s43">[43]</a>.</p></li>
+      <li class="tl-item reveal"><time class="mono" datetime="2025-10-27">27.10.2025</time><h3>Новые правила управления сетью</h3><p>Постановление № 1667 о централизованном управлении сетью связи общего пользования, действует с 01.03.2026<a class="fn" href="#s6">[6]</a>.</p></li>
+      <li class="tl-item tl-block reveal"><time class="mono" datetime="2026-02-10">10.02.2026</time><h3>Замедление Telegram</h3><p>Началось замедление мессенджера по всей стране<a class="fn" href="#s45">[45]</a>.</p></li>
+      <li class="tl-item tl-block reveal"><time class="mono" datetime="2026-04-10">10.04.2026</time><h3>95% аномалий в тестах Telegram</h3><p>По данным OONI в пересказе СМИ, доля аномальных измерений достигла 95%<a class="fn" href="#s47">[47]</a>.</p></li>
+    </ol>
+  </div>
+</section>
+
+<!-- ============ НОВОСТИ ============ -->
+<section class="section" id="news" aria-labelledby="news-title">
+  <div class="wrap">
+    <header class="section-head reveal">
+      <p class="section-num mono">05 / последние полгода</p>
+      <h2 id="news-title">Новости</h2>
+      <p class="section-lead">Снимок на <time datetime="2026-11-10">10.11.2026</time>: исследования, судебные дела, международная практика и реакция бизнеса и пользователей. Пересказ своими словами — подробности по ссылке на источник.</p>
+    </header>
+    <div class="news-filters" id="news-filters" role="group" aria-label="Фильтр новостей" hidden></div>
+    <div class="news-grid" id="news-grid" aria-live="polite">
+      <noscript><p class="note">Для показа новостей нужен JavaScript. Данные лежат в <a href="data/news.json">data/news.json</a>.</p></noscript>
+    </div>
+  </div>
+</section>
+
+<!-- ============ ИСТОЧНИКИ ============ -->
+<section class="section section-alt" id="sources" aria-labelledby="src-title">
+  <div class="wrap">
+    <header class="section-head reveal">
+      <p class="section-num mono">06 / источники</p>
+      <h2 id="src-title">Источники</h2>
+      <p class="section-lead">Номера в квадратных скобках по тексту ведут сюда. Даты — даты публикации. Ссылки открываются в новой вкладке.</p>
+    </header>
+    <div class="sources" id="sources-list">
+      <h3 class="src-group mono">Нормативные акты и официальные источники</h3>
+      <ol class="src">
+        <li id="s1" value="1">Федеральный закон от 01.05.2019 № 90-ФЗ (официальная публикация). Российская газета, 07.05.2019. <a href="https://rg.ru/documents/2019/05/07/fz90-dok.html" rel="noopener noreferrer" target="_blank">rg.ru</a></li>
+        <li id="s2" value="2">Федеральный закон от 01.05.2019 № 90-ФЗ. Президент России, банк документов. <a href="https://www.kremlin.ru/acts/bank/44230" rel="noopener noreferrer" target="_blank">kremlin.ru</a></li>
+        <li id="s3" value="3">Ст. 65.1 Федерального закона «О связи» № 126-ФЗ, действующая редакция. КонсультантПлюс. <a href="https://www.consultant.ru/document/cons_doc_LAW_43224/a2c8bacb6428452f2f3d19446ebbc059b04a4c78/" rel="noopener noreferrer" target="_blank">consultant.ru</a></li>
+        <li id="s4" value="4">«О ЦМУ ССОП». Официальный портал ЦМУ ССОП (дата не указана). <a href="https://portal.noc.gov.ru/ru/cmu/" rel="noopener noreferrer" target="_blank">portal.noc.gov.ru</a></li>
+        <li id="s5" value="5">Приказ Роскомнадзора от 19.02.2024 № 25 «Об утверждении технических условий установки ТСПУ…». Гарант, 2024. <a href="https://www.garant.ru/products/ipo/prime/doc/408668597/" rel="noopener noreferrer" target="_blank">garant.ru</a></li>
+        <li id="s6" value="6">Постановление Правительства РФ от 27.10.2025 № 1667 «Об утверждении Правил централизованного управления сетью связи общего пользования». Гарант, 2025. <a href="https://www.garant.ru/products/ipo/prime/doc/412901371/" rel="noopener noreferrer" target="_blank">garant.ru</a></li>
+        <li id="s7" value="7">Федеральный закон от 28.07.2012 № 139-ФЗ. Гарант. <a href="https://base.garant.ru/70207766/" rel="noopener noreferrer" target="_blank">base.garant.ru</a></li>
+        <li id="s8" value="8">Russia-related Designations (MFI Soft и др.). OFAC, U.S. Department of the Treasury, 24.02.2023. <a href="https://ofac.treasury.gov/recent-actions/20230224" rel="noopener noreferrer" target="_blank">ofac.treasury.gov</a></li>
+      </ol>
+
+      <h3 class="src-group mono">Исследования и технические документы</h3>
+      <ol class="src">
+        <li id="s10" value="10">RFC 9505 «A Survey of Worldwide Censorship Techniques». IRTF, 11.2023. <a href="https://www.rfc-editor.org/rfc/rfc9505.html" rel="noopener noreferrer" target="_blank">rfc-editor.org</a></li>
+        <li id="s11" value="11">RFC 9849 «TLS Encrypted Client Hello». IETF, 2026. <a href="https://www.rfc-editor.org/info/rfc9849/" rel="noopener noreferrer" target="_blank">rfc-editor.org</a></li>
+        <li id="s12" value="12">Xue D. et al. «Throttling Twitter: An Emerging Censorship Technique in Russia». ACM IMC '21, 11.2021. <a href="https://censoredplanet.org/assets/throttling-imc-paper.pdf" rel="noopener noreferrer" target="_blank">censoredplanet.org</a></li>
+        <li id="s13" value="13">Xue D. et al. «TSPU: Russia's Decentralized Censorship System». ACM IMC '22, 10.2022. <a href="https://ensa.fi/papers/tspu-imc22.pdf" rel="noopener noreferrer" target="_blank">ensa.fi</a></li>
+        <li id="s14" value="14">Heitmann N., Niere N., Graf Lange F., Somorovsky J. «On Russia's Early Introduction of QUIC SNI Censorship». FOCI 2026. <a href="https://www.petsymposium.org/foci/2026/foci-2026-0010.pdf" rel="noopener noreferrer" target="_blank">petsymposium.org</a></li>
+        <li id="s15" value="15">Niere N. et al. «Encrypted Client Hello (ECH) in Censorship Circumvention». FOCI 2025. <a href="https://www.petsymposium.org/foci/2025/foci-2025-0016.pdf" rel="noopener noreferrer" target="_blank">petsymposium.org</a></li>
+        <li id="s16" value="16">«Russia started blocking Tor». OONI, 17.12.2021. <a href="https://ooni.org/post/2021-russia-blocks-tor/" rel="noopener noreferrer" target="_blank">ooni.org</a></li>
+        <li id="s17" value="17">«How Internet censorship changed in Russia during the 1st year of military conflict in Ukraine». OONI, Роскомсвобода, 24.02.2023. <a href="https://ooni.org/post/2023-russia-a-year-after-the-conflict/" rel="noopener noreferrer" target="_blank">ooni.org</a></li>
+        <li id="s18" value="18">«Russia blocked OONI Explorer, a large open dataset on Internet censorship». OONI, 25.09.2024. <a href="https://ooni.org/post/2024-russia-blocked-ooni-explorer/" rel="noopener noreferrer" target="_blank">ooni.org</a></li>
+        <li id="s19" value="19">Wu M. «Geedge &amp; MESA Leak: Analyzing the Great Firewall's Largest Document Leak». GFW Report, 12.09.2025. <a href="https://gfw.report/blog/geedge_and_mesa_leak/en/" rel="noopener noreferrer" target="_blank">gfw.report</a></li>
+        <li id="s20" value="20">«The Internet Coup: A Technical Analysis on How a Chinese Company is Exporting The Great Firewall to Autocratic Regimes». InterSecLab, 09.09.2025. <a href="https://interseclab.org/research/the-internet-coup/" rel="noopener noreferrer" target="_blank">interseclab.org</a></li>
+        <li id="s21" value="21">Ablove A. et al. «Technical Analysis of the Geedge Networks Firewall Source Code Leak». USENIX Security '26, 08.2026. <a href="https://www.usenix.org/system/files/usenixsecurity26-ablove.pdf" rel="noopener noreferrer" target="_blank">usenix.org</a></li>
+        <li id="s22" value="22">«Bad Traffic: Sandvine's PacketLogic Devices Used to Deploy Government Spyware in Turkey and Redirect Egyptian Users to Affiliate Ads?». Citizen Lab, 09.03.2018. <a href="https://citizenlab.ca/2018/03/bad-traffic-sandvines-packetlogic-devices-deploy-government-spyware-turkey-syria/" rel="noopener noreferrer" target="_blank">citizenlab.ca</a></li>
+        <li id="s23" value="23">«Planet Netsweeper». Citizen Lab, 25.04.2018. <a href="https://citizenlab.ca/2018/04/planet-netsweeper/" rel="noopener noreferrer" target="_blank">citizenlab.ca</a></li>
+        <li id="s24" value="24">Raman R. S. et al. «Investigating Large Scale HTTPS Interception in Kazakhstan». ACM IMC 2020. <a href="https://censoredplanet.org/assets/Kazakhstan.pdf" rel="noopener noreferrer" target="_blank">censoredplanet.org</a></li>
+        <li id="s25" value="25">«Kazakhstan: TLS MITM attacks and blocking of news media, human rights, and circumvention tool sites». OONI, 2024. <a href="https://ooni.org/post/2024-kazakhstan-report/" rel="noopener noreferrer" target="_blank">ooni.org</a></li>
+        <li id="s26" value="26">«Shadows of Control: Censorship and Mass Surveillance in Pakistan». Amnesty International, 09.09.2025. <a href="https://www.amnesty.org/en/latest/news/2025/09/pakistan-mass-surveillance-and-censorship-machine-is-fueled-by-chinese-european-emirati-and-north-american-companies/" rel="noopener noreferrer" target="_blank">amnesty.org</a></li>
+        <li id="s27" value="27">«Silk Road of Surveillance» (пресс-релиз доклада). Justice For Myanmar, 09.09.2025. <a href="https://www.justiceformyanmar.org/press-releases/report-reveals-how-chinas-geedge-networks-and-myanmar-telecoms-companies-are-enabling-the-illegal-juntas-digital-terror-campaign" rel="noopener noreferrer" target="_blank">justiceformyanmar.org</a></li>
+      </ol>
+
+      <h3 class="src-group mono">СМИ и прочие публикации</h3>
+      <ol class="src">
+        <li id="s28" value="28">«В России начал действовать реестр запрещенных сайтов». Lenta.ru, 01.11.2012. <a href="https://lenta.ru/articles/2012/11/01/reestr" rel="noopener noreferrer" target="_blank">lenta.ru</a></li>
+        <li id="s29" value="29">«Роскомнадзор решил снять ограничения на работу Telegram в России». РБК, 18.06.2020. <a href="https://www.rbc.ru/society/18/06/2020/5eeb378c9a7947208c4e62e3" rel="noopener noreferrer" target="_blank">rbc.ru</a></li>
+        <li id="s30" value="30">«Провайдеров накачали „суверенным интернетом“». Коммерсантъ, 18.09.2020. <a href="https://www.kommersant.ru/doc/4494156" rel="noopener noreferrer" target="_blank">kommersant.ru</a></li>
+        <li id="s31" value="31">Роскомнадзор о замедлении Twitter. Коммерсантъ, 10.03.2021. <a href="https://www.kommersant.ru/doc/4722015" rel="noopener noreferrer" target="_blank">kommersant.ru</a></li>
+        <li id="s32" value="32">«Роскомнадзор назвал дату блокировки Instagram». РБК, 11.03.2022. <a href="https://www.rbc.ru/technology_and_media/11/03/2022/622b82ea9a794703dac5672b" rel="noopener noreferrer" target="_blank">rbc.ru</a></li>
+        <li id="s33" value="33">«Пользователи второй день жалуются на сбои в работе сервисов для обхода блокировок». Meduza, 08.08.2023. <a href="https://meduza.io/feature/2023/08/08/polzovateli-vtoroy-den-zhaluyutsya-na-sboi-v-rabote-servisov-dlya-obhoda-blokirovok" rel="noopener noreferrer" target="_blank">meduza.io</a></li>
+        <li id="s34" value="34">«Российские операторы связи массово блокируют VPN-протоколы». ComNews, 08.08.2023. <a href="https://www.comnews.ru/content/227971/2023-08-08/2023-w32/rossiyskie-operatory-svyazi-massovo-blokiruyut-protokoly-openvpn-i-wireguard" rel="noopener noreferrer" target="_blank">comnews.ru</a></li>
+        <li id="s35" value="35">«Putin's digital Iron Curtain: Russia bypasses sanctions, buys equipment to block YouTube and Telegram». The Insider, 10.10.2023. <a href="https://theins.press/en/politics/265749" rel="noopener noreferrer" target="_blank">theins.press</a></li>
+        <li id="s36" value="36">«Власти начали управлять блокировками в Рунете с помощью отечественного оборудования». CNews, 10.07.2024. <a href="https://gov.cnews.ru/news/top/2024-07-10_vlasti_nachali_upravlyat" rel="noopener noreferrer" target="_blank">cnews.ru</a></li>
+        <li id="s37" value="37">«Хинштейн объяснил заявление о замедлении работы YouTube». РБК, 26.07.2024. <a href="https://www.rbc.ru/technology_and_media/26/07/2024/66a393d79a794754343bc1de" rel="noopener noreferrer" target="_blank">rbc.ru</a></li>
+        <li id="s38" value="38">«Роскомнадзор потребовал от операторов связи перестать ускорять YouTube». Коммерсантъ, 30.08.2024. <a href="https://www.kommersant.ru/doc/6921420" rel="noopener noreferrer" target="_blank">kommersant.ru</a></li>
+        <li id="s39" value="39">Об обновлении системы ТСПУ (пересказ Forbes). Медиазона, 10.09.2024. <a href="https://zona.media/news/2024/09/10/obnovlenie_sistemy" rel="noopener noreferrer" target="_blank">zona.media</a></li>
+        <li id="s40" value="40">«Blockade by censorship authority: Russia censors Cloudflare websites». heise online, 11.2024. <a href="https://www.heise.de/en/news/Blockade-by-censorship-authority-Russia-censors-Cloudflare-websites-10012537.html" rel="noopener noreferrer" target="_blank">heise.de</a></li>
+        <li id="s41" value="41">Об отключениях мобильного интернета в регионах. Коммерсантъ, 2025. <a href="https://www.kommersant.ru/doc/8024923" rel="noopener noreferrer" target="_blank">kommersant.ru</a></li>
+        <li id="s42" value="42">РКН о частичном ограничении звонков в мессенджерах. Интерфакс, 13.08.2025. <a href="https://www.interfax.ru/russia/1042077" rel="noopener noreferrer" target="_blank">interfax.ru</a></li>
+        <li id="s43" value="43">О перечне доступных сервисов («белые списки»). CNews, 05.09.2025. <a href="https://www.cnews.ru/news/top/2025-09-05_v_runet_po_belym_spiskam" rel="noopener noreferrer" target="_blank">cnews.ru</a></li>
+        <li id="s44" value="44">«Таинственную компанию по внедрению „железа“ для „суверенного Рунета“ возглавил человек из „Ростелекома“». CNews, 20.01.2026. <a href="https://www.cnews.ru/news/top/2026-01-20_tainstvennuyu_kompaniyu_po" rel="noopener noreferrer" target="_blank">cnews.ru</a></li>
+        <li id="s45" value="45">«РБК: Роскомнадзор начинает „замедлять“ телеграм». Meduza, 10.02.2026. <a href="https://meduza.io/news/2026/02/10/rbk-roskomnadzor-nachinaet-zamedlyat-telegram" rel="noopener noreferrer" target="_blank">meduza.io</a></li>
+        <li id="s46" value="46">«Роскомнадзор: операторов связи оштрафовали за нарушения при использовании ТСПУ». Коммерсантъ, 06.04.2026. <a href="https://www.kommersant.ru/doc/8570203" rel="noopener noreferrer" target="_blank">kommersant.ru</a></li>
+        <li id="s47" value="47">«Блокировка телеграма в России почти достигла 100%». Meduza, 10.04.2026. <a href="https://meduza.io/news/2026/04/10/blokirovka-telegrama-v-rossii-pochti-dostigla-100" rel="noopener noreferrer" target="_blank">meduza.io</a></li>
+        <li id="s48" value="48">«Компания, отвечающая за блокировки Рунета, готовится к расширению». CNews, 09.06.2026. <a href="https://www.cnews.ru/news/top/2026-06-09_glavnyj_integrator_filtratsii" rel="noopener noreferrer" target="_blank">cnews.ru</a></li>
+        <li id="s49" value="49">Статистика ЦМУ ССОП за октябрь 2026 года. Интерфакс, 03.11.2026. <a href="https://www.interfax.ru/russia/1126783" rel="noopener noreferrer" target="_blank">interfax.ru</a></li>
+        <li id="s50" value="50">«Special Report: Chinese firm helps Iran spy on citizens». Reuters, 22.03.2012 (копия IBTimes). <a href="https://www.ibtimes.com/special-report-chinese-firm-helps-iran-spy-citizens-428596" rel="noopener noreferrer" target="_blank">ibtimes.com</a></li>
+        <li id="s51" value="51">«Belarusian Officials Shut Down Internet With Technology Made by U.S. Firm». Bloomberg, 28.08.2020 (копия Yahoo Finance). <a href="https://finance.yahoo.com/news/belarusian-officials-shut-down-internet-112208136.html" rel="noopener noreferrer" target="_blank">finance.yahoo.com</a></li>
+        <li id="s52" value="52">«US Blacklists Sandvine for Censorship, Web Monitoring in Egypt». Bloomberg, 26.02.2024. <a href="https://www.bloomberg.com/news/articles/2024-02-26/us-blacklists-sandvine-for-censorship-web-monitoring-in-egypt" rel="noopener noreferrer" target="_blank">bloomberg.com</a></li>
+        <li id="s53" value="53">Пресс-релиз Sandvine об исключении из Entity List. Business Wire, 21.10.2024. <a href="https://www.businesswire.com/news/home/20241021935632/en" rel="noopener noreferrer" target="_blank">businesswire.com</a></li>
+        <li id="s54" value="54">«A Warning to Know Your Customer: Computerlinks Fined for Dealing Blue Coat Surveillance Technology to Syria». EFF, 05.2013. <a href="https://www.eff.org/deeplinks/2013/05/blue-coat-syria-scandal-next-shoe-drops-computerlinks-fzco" rel="noopener noreferrer" target="_blank">eff.org</a></li>
+        <li id="s55" value="55">«Фильтрация трафика по спискам Роскомнадзора». VAS Experts, страница производителя (дата не указана). <a href="https://vasexperts.ru/products/traffic-filtering/" rel="noopener noreferrer" target="_blank">vasexperts.ru</a></li>
+        <li id="s56" value="56">«Карта шатдаунов: в каких российских регионах мобильный интернет отключают чаще всего». Meduza, 07.07.2025. <a href="https://meduza.io/feature/2025/07/07/karta-shatdaunov-v-kakih-rossiyskih-regionah-mobilnyy-internet-otklyuchayut-chasche-vsego" rel="noopener noreferrer" target="_blank">meduza.io</a></li>
+        <li id="s59" value="59">Об исключении доменов WhatsApp из НСДИ. РБК Приморье, 12.02.2026. <a href="https://prim.rbc.ru/prim/12/02/2026/698d79189a7947ffe922a0ef" rel="noopener noreferrer" target="_blank">prim.rbc.ru</a></li>
+      </ol>
+
+      <h3 class="src-group mono">Новости (раздел 05)</h3>
+      <ol class="src src-news" id="news-sources">
+        <li class="muted">Список формируется из <a href="data/news.json">data/news.json</a>.</li>
+      </ol>
+
+      <h3 class="src-group mono">Шрифты и оформление</h3>
+      <ul class="src src-plain">
+        <li>Inter — © The Inter Project Authors, SIL Open Font License 1.1. <a href="fonts/licenses/inter-OFL.txt">лицензия</a></li>
+        <li>JetBrains Mono — © The JetBrains Mono Project Authors, SIL OFL 1.1. <a href="fonts/licenses/jetbrainsmono-OFL.txt">лицензия</a></li>
+        <li>Yeseva One — © The Yeseva One Project Authors, SIL OFL 1.1. <a href="fonts/licenses/yesevaone-OFL.txt">лицензия</a></li>
+        <li>Cormorant Garamond — © The Cormorant Project Authors, SIL OFL 1.1. <a href="fonts/licenses/cormorantgaramond-OFL.txt">лицензия</a></li>
+        <li>Все схемы, иконки и текстуры нарисованы для этого сайта; сторонние изображения не используются.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer class="footer">
+  <div class="wrap footer-inner">
+    <p class="mono"><svg class="logo-mark logo-mark-sm" viewBox="0 0 40 40" aria-hidden="true" focusable="false"><use href="#logo-mark"/></svg> CHOKEPOINT · информер о блокировках</p>
+    <p>Актуально на <time datetime="2026-11-10">10.11.2026</time>. Информация носит ознакомительный характер и собрана из открытых источников.</p>
+  </div>
+</footer>
+
+<!-- ============ Свиток ============ -->
+<dialog class="scroll-dialog" id="scroll-dialog" role="dialog" aria-modal="true" aria-labelledby="scroll-title" aria-describedby="scroll-subtitle">
+  <div class="scroll-sheet" id="scroll-sheet">
+    <button type="button" class="seal-btn" id="seal-btn" aria-label="Закрыть свиток">
+      <svg viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+        <path class="seal-wax" d="M32 3 C38 3 41 7 46 8 C52 9 56 13 57 19 C58 24 62 27 61 33 C60 39 57 42 56 47 C54 53 49 57 43 58 C38 59 35 62 30 61 C24 60 21 57 16 55 C10 53 6 48 5 42 C4 37 2 34 3 28 C4 22 8 19 10 14 C13 8 18 5 24 4 C27 3 29 3 32 3 Z"/>
+        <circle class="seal-ring" cx="32" cy="32" r="19"/>
+        <path class="seal-mark" d="M24 24 L40 40 M40 24 L24 40"/>
+      </svg>
+    </button>
+    <div class="scroll-body" id="scroll-body" tabindex="0">
+<!--SCROLL_BODY-->
+      <h2 class="scroll-title" id="scroll-title">Павел Блядищев и легенда о Великом Замысле</h2>
+      <p class="scroll-subtitle" id="scroll-subtitle"><em>Сказание о мудром гноме, чья фантазия была безгранична, а горячая вода — практически кипяток.</em></p>
+      <svg class="ornament" viewBox="0 0 240 24" aria-hidden="true" focusable="false"><use href="#ornament"/></svg>
+      <p class="dropcap">В незапамятные времена, когда горы ещё помнили имена своих создателей, а звёзды зажигались по велению древних магов, жил-был в подземных чертогах гном по имени Павел Блядищев.</p>
+      <p>Но не был Павел обычным гномом. Он принадлежал к древнему ордену Гномов-Мудрецов, хранителей забытых знаний, повелителей стихий и великих любителей порассуждать о том, как однажды изменить устройство всего сущего.</p>
+      <p>Павел жил уже столько веков, что даже старейшие эльфы перестали спрашивать его возраст. Когда кто-нибудь из молодых волшебников интересовался, сколько ему лет, Павел загадочно улыбался и отвечал:</p>
+      <p class="reply">— Достаточно, чтобы знать: всё ещё впереди.</p>
+      <p>И, надо сказать, выглядел он весьма внушительно. Из-под его капюшона выбивалась густая, роскошная шевелюра, которой могли бы позавидовать даже лесные духи. Волосы его были настолько густыми, что однажды маленький дракон принял их за древний зачарованный лес и попытался устроить там гнездо.</p>
+      <h3 class="scroll-chapter"><svg class="ornament" viewBox="0 0 240 24" aria-hidden="true" focusable="false"><use href="#ornament"/></svg><span>О Великом Замысле</span></h3>
+      <p class="dropcap">Главным даром Павла была не столько магия, сколько воображение.</p>
+      <p>Ох, чего только он не придумывал!</p>
+      <p>Однажды за завтраком Павел объявил, что собирается построить башню до самых небес, чтобы вести переговоры с богами напрямую и, возможно, договориться о более благоприятной погоде для прогулок.</p>
+      <p>В другой раз он задумал создать вечный двигатель, который будет питать целый город, освещать подземные королевства и заодно варить идеальный кофе.</p>
+      <p>А однажды он заявил, что намерен объединить все народы Средиземья в единый союз мудрости, гармонии и взаимопонимания, где каждый будет заниматься любимым делом, а налоги отменят за ненадобностью.</p>
+      <p class="reply">— Но, Павел, — осторожно заметил его старый друг, эльф Элронд, — ты хотя бы начнёшь с чертежей?</p>
+      <p class="reply">— Разумеется! — отвечал гном, широко разводя руками. — Я уже практически приступил. В голове всё готово. Осталось лишь воплотить!</p>
+      <p>Однако проходили годы, десятилетия, а иногда и целые эпохи. Башня оставалась в воображении, двигатель — в воображении, а единый союз народов Средиземья существовал исключительно в форме прекрасной мысленной презентации.</p>
+      <p>Но никто не смел смеяться над Павлом. Ведь фантазировал он настолько грандиозно, что даже если воплощалась лишь малая часть задуманного, мир становился чуточку лучше.</p>
+      <h3 class="scroll-chapter"><svg class="ornament" viewBox="0 0 240 24" aria-hidden="true" focusable="false"><use href="#ornament"/></svg><span>О Долгих Прогулках и Верных Друзьях</span></h3>
+      <p class="dropcap">Несмотря на свою склонность к великим замыслам, Павел не любил сидеть на месте.</p>
+      <p>Он мог часами бродить по горным тропам, пересекать долины, заглядывать в леса и исследовать старые дороги. Говорили, что он знал все тропинки Средиземья лучше, чем некоторые картографы знали собственную спальню.</p>
+      <p class="reply">— Зачем тебе столько гулять? — однажды спросил его молодой гном Гимли.</p>
+      <p class="reply">— Чтобы мыслить масштабно, нужно смотреть на мир широко, — ответил Павел.</p>
+      <p>И отправился гулять ещё на три часа.</p>
+      <p>Но за этой любовью к путешествиям скрывалось нечто более важное. Павел всегда замечал, когда его друзьям становилось тяжело. Он мог забыть собственные дела, отложить очередной грандиозный проект и отправиться на помощь даже в самую дальнюю часть королевства.</p>
+      <p>Когда однажды его друг, маг Гендальф, попал в неприятности в Туманных горах, Павел, не раздумывая, собрался в путь.</p>
+      <p class="reply">— Но ведь ты планировал сегодня закончить проект по созданию портала в параллельное измерение! — напомнили ему.</p>
+      <p class="reply">— Проект подождёт. Друзья — нет.</p>
+      <p>И это была одна из немногих вещей, в которых Павел никогда не ограничивался фантазией.</p>
+      <h3 class="scroll-chapter"><svg class="ornament" viewBox="0 0 240 24" aria-hidden="true" focusable="false"><use href="#ornament"/></svg><span>О Священном Огне и Великом Дожде</span></h3>
+      <p class="dropcap">Однако была у Павла одна особенность, которую даже самые могущественные маги Средиземья считали поистине необъяснимой.</p>
+      <p>Он обожал принимать горячий душ.</p>
+      <p>Не просто горячий. Не просто очень горячий.</p>
+      <p>ОООЧЕНЬ ГОРЯЧИЙ.</p>
+      <p>В глубинах его чертогов находилась особая купальня, в которой Павел ежедневно проводил магический ритуал очищения.</p>
+      <p>Температура воды была такова, что обычный эльф потерял бы сознание ещё на пороге, а дракон почувствовал бы себя неуютно.</p>
+      <p>Однажды Гендальф решил проверить, насколько горячей была вода, и сунул туда палец.</p>
+      <p class="reply">— БАЛРОГ! — закричал он, отдёрнув руку. — ЧТО ЭТО ЗА АДСКОЕ ПЛАМЯ?!</p>
+      <p>Павел же, невозмутимо стоя под струями воды, ответил:</p>
+      <p class="reply">— Прекрасная температура. Можно было бы и погорячее.</p>
+      <p>Поговаривали, что именно благодаря этому ритуалу Павел сохранял бодрость духа на протяжении многих столетий. Некоторые даже считали, что секрет его долголетия заключался не в древней магии, а в регулярном прогревании организма до температуры плавления мифрила.</p>
+      <h3 class="scroll-chapter"><svg class="ornament" viewBox="0 0 240 24" aria-hidden="true" focusable="false"><use href="#ornament"/></svg><span>Последнее пророчество</span></h3>
+      <p class="dropcap">И вот однажды, когда над Средиземьем нависла очередная великая угроза, собрались мудрецы всех народов, чтобы решить судьбу мира.</p>
+      <p>Гендальф, Элронд, Галадриэль и прочие великие властители долго спорили, строили стратегии и перебирали древние пророчества.</p>
+      <p>Наконец дверь распахнулась, и в зал вошёл Павел Блядищев.</p>
+      <p>Его густые волосы величественно развевались, плащ был покрыт пылью дальних дорог, а в глазах сиял огонь очередного грандиозного замысла.</p>
+      <p class="reply">— Друзья мои! — произнёс он. — Я знаю, как нам спасти Средиземье!</p>
+      <p>Все замолчали.</p>
+      <p class="reply">— Мы построим гигантскую сеть магических порталов, объединим все королевства, создадим энергетическую систему на основе древних кристаллов и направим потоки положительной энергии на уничтожение зла!</p>
+      <p class="reply">— И когда же ты собираешься начать? — осторожно спросил Гендальф.</p>
+      <p>Павел задумался.</p>
+      <p class="reply">— Думаю, после прогулки. А потом мне нужно будет принять душ.</p>
+      <p>Мудрецы переглянулись.</p>
+      <p class="reply">— Горячий? — спросил Элронд.</p>
+      <p class="reply">— Разумеется, — ответил Павел. — Очень горячий.</p>
+      <p>И тогда Гендальф рассмеялся.</p>
+      <p class="reply">— Что ж, друзья мои. Возможно, именно такой мудрец нам и нужен.</p>
+      <p>Ведь в мире, полном тьмы, войн и бесконечных забот, должен быть кто-то, кто умеет мечтать о невозможном, кто не забывает о друзьях, кто готов пройти тысячи дорог и кто даже перед лицом величайшего зла сохраняет спокойствие, потому что знает: после всех великих свершений его ждёт горячий душ.</p>
+      <p>Так и продолжил жить Павел Блядищев — мудрый гном, великий фантазёр, верный друг и странник бесконечных дорог.</p>
+      <p>А его великие проекты?</p>
+      <p>Говорят, они до сих пор существуют.</p>
+      <p>Где-то между звёздами, в его воображении.</p>
+      <p>И, быть может, однажды он всё-таки приступит к их реализации.</p>
+      <p>Но сначала — прогулка. А потом душ.</p>
+      <p>Ибо такова была древняя мудрость гномов Блядищева:</p>
+      <blockquote class="scroll-saying"><p>«Великие дела требуют великой фантазии. Верные друзья требуют великого сердца. А для того и другого необходима чистая голова, густая шевелюра и вода температурой не ниже девяноста градусов».</p></blockquote>
+      <p class="scroll-finale">Да здравствует Павел Блядищев! Хранитель несбывшихся свершений, повелитель горячих вод и последний великий мечтатель Средиземья!</p>
+      <!--/SCROLL_BODY-->
+    </div>
+  </div>
+</dialog>
+
+</body>
+</html>

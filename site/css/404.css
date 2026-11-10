@@ -1,0 +1,15 @@
+.page-404 { min-height: 100vh; min-height: 100svh; display: grid; place-items: center; padding: 24px 16px; }
+.nf { max-width: 560px; }
+.nf h1 { font-size: clamp(1.8rem, 1.3rem + 2vw, 2.6rem); font-weight: 600; }
+.nf p { color: var(--text); }
+.nf-diagram { width: 100%; height: auto; margin-bottom: 28px; }
+.nf-line { stroke: var(--cyan); stroke-width: 2; fill: none; }
+.nf-dash { stroke: var(--text-2); stroke-width: 2; stroke-dasharray: 5 5; fill: none; }
+.nf-node { fill: var(--surface); stroke: var(--red); stroke-width: 1.5; }
+.nf-node-t { fill: var(--red); font: 600 18px "JetBrains Mono", monospace; text-anchor: middle; }
+.nf-x { stroke: var(--red); stroke-width: 3; stroke-linecap: round; }
+.nf-pkt { fill: var(--cyan); }
+@media (prefers-reduced-motion: no-preference) {
+  .nf-pkt { animation: nf-run 2.4s ease-in infinite; }
+  @keyframes nf-run { 0% { transform: translateX(-80px); opacity: 0; } 15% { opacity: 1; } 70% { transform: translateX(80px); opacity: 1; } 100% { transform: translateX(80px); opacity: 0; } }
+}

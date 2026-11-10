@@ -1,0 +1,46 @@
+# CHOKEPOINT — локальный режим без домена: https://localhost:8443
+# Самоподписанный сертификат создаётся автоматически при первом запуске.
+#
+#   docker compose -f docker-compose.local.yml up -d
+#   curl -k https://localhost:8443/
+#   docker compose -f docker-compose.local.yml down
+#
+# Отдельное имя проекта — не пересекается с боевым стеком.
+
+name: chokepoint-local
+
+services:
+  local-cert:
+    image: certbot/certbot
+    entrypoint: ["python3", "/opt/chokepoint/selfsigned.py"]
+    command: ["--out", "/certs/localhost", "--cn", "localhost", "--days", "825", "--if-missing"]
+    volumes:
+      - ./scripts/selfsigned.py:/opt/chokepoint/selfsigned.py:ro
+      - local-certs:/certs
+
+  web:
+    image: nginx:alpine
+    restart: unless-stopped
+    depends_on:
+      local-cert:
+        condition: service_completed_successfully
+    ports:
+      - "8080:80"
+      - "8443:443"
+    environment:
+      LOCAL_HTTPS_PORT: "8443"
+    volumes:
+      - ./site:/usr/share/nginx/html:ro
+      - ./nginx/local-templates:/etc/nginx/templates:ro
+      - ./nginx/conf.d/00-http.conf:/etc/nginx/conf.d/00-http.conf:ro
+      - ./nginx/snippets:/etc/nginx/snippets:ro
+      - local-certs:/etc/nginx/certs:ro
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  local-certs:

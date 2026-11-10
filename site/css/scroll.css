@@ -1,0 +1,228 @@
+/* Свиток — модальное окно-пасхалка. Намеренно контрастирует с остальным сайтом. */
+
+.scroll-dialog {
+  --ink: #3B2A1A;
+  --ink-soft: #5A4128;
+  --rubric: #7A2614;
+  --parch-1: #F1E4C6;
+  --parch-2: #E7D3A8;
+  --parch-3: #D9BE88;
+  --wax: #8E1B12;
+
+  width: min(760px, calc(100vw - 24px));
+  max-width: none;
+  height: min(88vh, 1100px);
+  height: min(88dvh, 1100px);
+  max-height: none;
+  margin: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  overflow: visible;
+  color-scheme: light;
+}
+.scroll-dialog::backdrop {
+  background: rgba(5, 7, 9, .78);
+  backdrop-filter: blur(3px);
+}
+.scroll-dialog[open] { display: flex; }
+
+.scroll-sheet {
+  position: relative;
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  border-radius: 6px;
+  background-color: var(--parch-1);
+  background-image:
+    url("../assets/noise.svg"),
+    url("../assets/fibers.svg"),
+    radial-gradient(ellipse at 30% 20%, rgba(255, 250, 235, .55), transparent 60%),
+    radial-gradient(ellipse at 75% 85%, rgba(196, 160, 98, .35), transparent 55%),
+    linear-gradient(180deg, var(--parch-1) 0%, var(--parch-2) 55%, var(--parch-1) 100%);
+  background-size: 240px 240px, 600px 600px, 100% 100%, 100% 100%, 100% 100%;
+  background-blend-mode: multiply, multiply, normal, normal, normal;
+  /* «обожжённые» края */
+  box-shadow:
+    inset 0 0 0 1px rgba(90, 55, 20, .35),
+    inset 0 0 18px 4px rgba(110, 62, 18, .55),
+    inset 0 0 60px 14px rgba(150, 98, 40, .35),
+    inset 0 0 120px 30px rgba(190, 150, 90, .25),
+    0 30px 80px rgba(0, 0, 0, .6);
+}
+/* валики свитка сверху и снизу */
+.scroll-sheet::before, .scroll-sheet::after {
+  content: ""; position: absolute; left: -10px; right: -10px; height: 22px; z-index: 2;
+  border-radius: 11px;
+  background:
+    linear-gradient(180deg, #E2C995 0%, #C9A867 35%, #9C7A40 70%, #7A5A2C 100%);
+  box-shadow: 0 3px 8px rgba(40, 24, 8, .45), inset 0 1px 0 rgba(255, 245, 220, .6);
+  pointer-events: none;
+}
+.scroll-sheet::before { top: -11px; }
+.scroll-sheet::after { bottom: -11px; }
+
+.scroll-body {
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: clamp(36px, 6vw, 64px) clamp(22px, 7vw, 76px) clamp(40px, 6vw, 72px);
+  font-family: "Cormorant Garamond", "Georgia", "Times New Roman", serif;
+  font-weight: 500;
+  font-size: clamp(1.14rem, 1.02rem + .5vw, 1.32rem);
+  line-height: 1.55;
+  color: var(--ink);
+  scrollbar-color: rgba(90, 60, 30, .45) transparent;
+  scrollbar-width: thin;
+  hyphens: auto;
+}
+.scroll-body:focus { outline: none; }
+.scroll-body:focus-visible { outline: 2px dashed rgba(90, 60, 30, .6); outline-offset: -8px; }
+.scroll-body p { margin: 0 0 .85em; text-wrap: pretty; }
+
+.scroll-title {
+  font-family: "Yeseva One", "Georgia", serif;
+  font-weight: 400;
+  font-size: clamp(1.7rem, 1.2rem + 2.4vw, 2.6rem);
+  line-height: 1.15;
+  text-align: center;
+  color: var(--ink);
+  margin: 0 2.2rem .5em;
+  letter-spacing: .01em;
+  text-shadow: 0 1px 0 rgba(255, 248, 230, .6);
+}
+.scroll-subtitle {
+  text-align: center; color: var(--ink-soft);
+  font-size: 1.12em; margin-bottom: .4em !important;
+}
+.scroll-subtitle em { font-style: italic; }
+
+.ornament { display: block; width: min(240px, 70%); height: auto; margin: .6em auto 1.1em; color: var(--rubric); opacity: .85; }
+
+.scroll-chapter {
+  font-family: "Yeseva One", "Georgia", serif;
+  font-weight: 400;
+  font-size: clamp(1.3rem, 1.1rem + 1vw, 1.7rem);
+  text-align: center;
+  color: var(--rubric);
+  margin: 1.8em 0 .9em;
+  line-height: 1.25;
+}
+.scroll-chapter .ornament { margin: 0 auto .55em; }
+.scroll-chapter span { display: block; }
+
+.scroll-body p.dropcap::first-letter {
+  float: left;
+  font-family: "Yeseva One", "Georgia", serif;
+  font-size: 3.4em;
+  line-height: .82;
+  padding: .06em .1em 0 0;
+  margin-top: .04em;
+  color: var(--rubric);
+  text-shadow: 1px 1px 0 rgba(255, 245, 220, .7);
+}
+.scroll-body p.reply { padding-left: 1.2em; }
+
+.scroll-saying {
+  margin: 1.4em auto 1.4em;
+  max-width: 36em;
+  padding: 1em 1.4em;
+  border-top: 1px solid rgba(122, 38, 20, .45);
+  border-bottom: 1px solid rgba(122, 38, 20, .45);
+  background: rgba(122, 38, 20, .06);
+  text-align: center;
+}
+.scroll-saying p {
+  margin: 0;
+  font-style: italic;
+  font-weight: 700;
+  font-size: 1.1em;
+  color: #4A2410;
+}
+
+.scroll-finale {
+  margin-top: 1.6em !important;
+  text-align: center;
+  font-family: "Yeseva One", "Georgia", serif;
+  font-size: 1.12em;
+  line-height: 1.45;
+  color: var(--rubric);
+}
+.scroll-finale::after {
+  content: "❦";
+  display: block; margin-top: .5em; font-size: 1.4em; color: var(--ink-soft);
+}
+
+/* Сургучная печать — кнопка закрытия */
+.seal-btn {
+  position: absolute; top: 18px; right: 16px; z-index: 3;
+  width: 58px; height: 58px; padding: 0;
+  border: 0; border-radius: 50%; background: transparent; cursor: pointer;
+  filter: drop-shadow(0 3px 3px rgba(40, 10, 5, .45));
+  transition: transform .2s ease, filter .2s ease;
+}
+.seal-btn svg { width: 100%; height: 100%; display: block; }
+.seal-wax { fill: var(--wax); }
+.seal-btn svg { background: radial-gradient(circle at 35% 30%, rgba(255, 140, 120, .55), transparent 45%); border-radius: 50%; }
+.seal-ring { fill: none; stroke: rgba(40, 6, 4, .45); stroke-width: 2.5; }
+.seal-mark { fill: none; stroke: #F3D2B6; stroke-width: 4; stroke-linecap: round; opacity: .9; }
+.seal-btn:hover { transform: rotate(-8deg) scale(1.05); }
+.seal-btn:focus-visible { outline: 3px solid #3B2A1A; outline-offset: 2px; }
+
+/* Разворачивание свитка */
+.scroll-dialog.is-opening .scroll-sheet { animation: unroll .75s cubic-bezier(.2, .8, .2, 1) both; }
+.scroll-dialog.is-opening::backdrop { animation: fade-in .4s ease both; }
+.scroll-dialog.is-closing .scroll-sheet { animation: roll-up .35s ease-in both; }
+.scroll-dialog.is-closing::backdrop { animation: fade-in .35s ease reverse both; }
+@keyframes unroll {
+  0%   { clip-path: inset(47% -12px 47% -12px round 6px); transform: scale(.96); opacity: .4; }
+  25%  { opacity: 1; }
+  100% { clip-path: inset(-14px -12px -14px -12px round 6px); transform: none; opacity: 1; }
+}
+@keyframes roll-up {
+  to { clip-path: inset(47% -12px 47% -12px round 6px); opacity: 0; }
+}
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+
+@media (max-width: 480px) {
+  .scroll-dialog { width: calc(100vw - 16px); height: calc(100dvh - 40px); }
+  .seal-btn { width: 48px; height: 48px; top: 14px; right: 10px; }
+  .scroll-title { margin-inline: 2.4rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scroll-dialog.is-opening .scroll-sheet,
+  .scroll-dialog.is-closing .scroll-sheet,
+  .scroll-dialog.is-opening::backdrop,
+  .scroll-dialog.is-closing::backdrop { animation: none !important; }
+}
+
+/* Защита от мисклика: печать неактивна, пока свиток разворачивается */
+.scroll-dialog .seal-btn { opacity: .35; transform: scale(.85); pointer-events: none; transition: opacity .3s ease, transform .3s ease, filter .2s ease; }
+.scroll-dialog.is-armed .seal-btn { opacity: 1; transform: none; pointer-events: auto; }
+.scroll-dialog.is-armed .seal-btn:hover { transform: rotate(-8deg) scale(1.05); }
+
+/* Конфетти */
+.confetti { position: fixed; inset: 0; z-index: 10; pointer-events: none; overflow: hidden; }
+.confetti i {
+  position: absolute; left: var(--x0); top: 100%;
+  width: var(--w); height: var(--h);
+  background: var(--c); border-radius: var(--br);
+  opacity: 0;
+  animation: confetti-fly var(--t) linear var(--d) forwards;
+  will-change: transform, opacity;
+}
+@keyframes confetti-fly {
+  0%   { opacity: 1; transform: translate(0, 0) rotate(0deg); animation-timing-function: cubic-bezier(.1, .75, .3, 1); }
+  28%  { opacity: 1; transform: translate(var(--bx), var(--by)) rotate(var(--r1)); animation-timing-function: cubic-bezier(.45, 0, .8, .6); }
+  85%  { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--ex), var(--ey)) rotate(var(--r2)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .confetti { display: none; }
+  .scroll-dialog .seal-btn { transition: none; }
+}
+
+/* сам <dialog> получает фокус при клике по подложке — рамка не нужна */
+.scroll-dialog:focus, .scroll-dialog:focus-visible { outline: none; }
