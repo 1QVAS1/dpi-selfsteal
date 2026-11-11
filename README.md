@@ -22,6 +22,7 @@
    - [Требования](#требования)
    - [Включение](#включение)
    - [Что ввести в 3x-ui](#что-ввести-в-3x-ui)
+     - [Инбаунд XHTTP: подробнее](#инбаунд-xhttp-подробнее)
    - [Переменные в `.env`](#переменные-в-env)
    - [Порядок при переходе между режимами](#порядок-при-переходе-между-режимами)
    - [Проверка](#проверка)
@@ -421,18 +422,57 @@ cp .env.example .env             # если ещё не сделано; укаж
 | --- | --- | --- |
 | Инбаунд `tcp-reality` | Protocol / Port | `vless` / `443`, Listen IP пусто |
 |  | Transmission / Security | `TCP` (RAW), `Reality`, Xver `0` |
+|  | uTLS | `firefox` (или `safari`) |
 |  | Dest / Target | `127.0.0.1:9443` (`REALITY_TARGET_LISTEN`) |
 |  | SNI / Server Names | ваш `DOMAIN` |
-|  | Клиент | Flow `xtls-rprx-vision` |
+|  | Клиент | Flow `xtls-rprx-vision`, свой неочевидный subId |
 | Инбаунд `xhttp` | Listen IP / Port | `127.0.0.1` / `2023` (`XHTTP_UPSTREAM`) |
-|  | Transmission / Path | `XHTTP`, путь `XHTTP_PATH`, Mode `auto` |
-|  | Security | `none`: TLS делает nginx |
-|  | External Proxy | `tls`, ваш домен, `443` |
-|  | Клиент | Flow пусто, тот же subId, что у TCP-клиента |
+|  | Transmission / Path | `XHTTP`, путь `XHTTP_PATH`, Host пусто, Mode `auto` |
+|  | XMUX (если поле есть) | вкл., Max Connections `1` |
+|  | Security | `none`: TLS снимает nginx |
+|  | External Proxy | блок `externalProxy` в JSON инбаунда, см. ниже |
+|  | Клиент | не создавать: привязать TCP-клиента через «Linked Inbounds» |
 | Настройки → Подписка | Listen IP / Порт | `127.0.0.1` / `2096` (`SUB_UPSTREAM`) |
 |  | URI Path | `SUB_PATH` |
 |  | Reverse Proxy URI | `https://DOMAIN` + `SUB_PATH` (для JSON — `SUB_JSON_PATH`) |
 |  | Сертификат и ключ | пусто |
+
+#### Инбаунд XHTTP: подробнее
+
+**Почему Security `none`, а в ссылке `security=tls`.** У XHTTP два участка:
+
+```text
+клиент ──TLS (сертификат DOMAIN, h2)──► nginx 127.0.0.1:9443 ──без TLS (h2c)──► Xray 127.0.0.1:2023
+        ↑ это описывает ссылка:                                ↑ это описывает инбаунд:
+          security=tls, sni, alpn, fp                            Security = none
+```
+
+TLS расшифровывает nginx, а до Xray доходит открытый HTTP/2. Если включить в инбаунде Security = TLS, Xray будет ждать от nginx TLS, которого нет, и ничего не заработает.
+
+**External Proxy.** Чтобы панель подставляла в ссылку и подписку `DOMAIN:443` и `security=tls` вместо `127.0.0.1:2023`, в инбаунде нужен блок `externalProxy`. В интерфейсе 3x-ui v3 отдельного поля для него может не быть, поэтому добавьте его в JSON инбаунда, внутрь `"streamSettings": { ... }`. `reality.sh panel` печатает этот блок с вашим доменом:
+
+```json
+"externalProxy": [
+  { "forceTls": "tls", "dest": "example.org", "port": 443, "remark": "", "sni": "example.org" }
+]
+```
+
+Сохраните и откройте инбаунд снова: блок должен остаться. В ссылке клиента («Инфо» / QR) должно быть `@example.org:443` и `security=tls`.
+
+**Клиент.** В 3x-ui v3 клиент — одна запись с одним subId, и её можно привязать к нескольким инбаундам. Второго клиента с тем же subId панель не создаст (`Duplicate subId`). Поэтому:
+
+1. Откройте TCP-клиента на редактирование.
+2. В «Linked Inbounds» добавьте инбаунд `xhttp` и сохраните.
+3. Flow оставьте `xtls-rprx-vision`: в актуальных версиях 3x-ui Flow хранится для каждого инбаунда отдельно, и для XHTTP панель его убирает сама.
+4. Проверьте XHTTP-ссылку: в ней не должно быть `flow=`. Если `flow=xtls-rprx-vision` есть, XHTTP работать не будет. Обновите панель (`x-ui update`) или включите у инбаунда `xhttp` опцию DisableFlow, если она есть в вашей версии.
+
+**Ссылка вручную.** Если `externalProxy` не сохраняется или ссылка всё равно с `127.0.0.1:2023`, соберите ссылку сами и добавьте её в клиент отдельно от подписки. Строку XHTTP с `127.0.0.1:2023` из подписки не используйте, TCP-строка в ней правильная. `reality.sh panel` печатает шаблон с вашими доменом и путём:
+
+```text
+vless://UUID@example.org:443?type=xhttp&path=%2Fmedia%2F0123456789%2F&mode=auto&security=tls&sni=example.org&alpn=h2&fp=firefox#xhttp
+```
+
+Если в сгенерированной панелью ссылке нет `fp=`, допишите `&fp=firefox` или выберите отпечаток firefox в профиле клиента.
 
 Остальные шаги инструкции выполняются в 3x-ui и на хосте, как в ней описано:
 - SSH-туннель к панели;
@@ -530,3 +570,9 @@ curl -s https://ifconfig.me    # IP сервера — должен совпад
 **Режим REALITY: `docker compose` ругается на `!reset`.** Обновите Docker Compose до 2.24.4 или новее.
 
 **Режим REALITY: XHTTP не подключается, в логе nginx 502.** Инбаунд XHTTP не запущен, либо его порт или путь не совпадает с `XHTTP_UPSTREAM` и `XHTTP_PATH`. Сверьте с `./scripts/reality.sh panel`, включая слеши.
+
+**Режим REALITY: в XHTTP-ссылке адрес `127.0.0.1:2023`.** В инбаунде `xhttp` нет блока `externalProxy`. Добавьте его в JSON инбаунда (см. «Инбаунд XHTTP: подробнее») или соберите ссылку вручную.
+
+**Режим REALITY: XHTTP не подключается, в логе Xray ошибка про flow.** В XHTTP-ссылке или конфиге остался `flow=xtls-rprx-vision`. Обновите панель (`x-ui update`) или включите у инбаунда `xhttp` опцию DisableFlow, если она есть.
+
+**Режим REALITY: в подписке меньше серверов, чем ожидалось.** Инбаунд `xhttp` не привязан к клиенту через «Linked Inbounds» или выключен. Привяжите его и проверьте переключатели инбаундов.

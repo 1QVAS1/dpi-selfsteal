@@ -144,6 +144,13 @@ check "enable --no-xhttp --sub-path: значения применены" bash -
 check "повторный enable без --xhttp не включает XHTTP обратно" test "$(envv XHTTP_ENABLED)" = "off"
 "$PROJ/scripts/reality.sh" enable --no-apply --xhttp >/dev/null 2>&1
 check "enable --xhttp включает XHTTP" test "$(envv XHTTP_ENABLED)" = "on"
+"$PROJ/scripts/reality.sh" panel >"$TMP/out" 2>&1
+check "panel: XMUX, Max Connections 1" grep -q "XMUX .* Max Connections 1" "$TMP/out"
+check "panel: блок externalProxy с доменом" grep -q '"externalProxy"' "$TMP/out"
+check "panel: externalProxy forceTls/dest/sni" grep -q '"forceTls": "tls", "dest": "test.example", "port": 443, .*"sni": "test.example"' "$TMP/out"
+check "panel: привязка клиента через Linked Inbounds" grep -q "Linked Inbounds" "$TMP/out"
+xpe="$(envv XHTTP_PATH)"; xpe="${xpe//\//%2F}"
+check "panel: ручная ссылка с закодированным путём и alpn=h2" grep -q "vless://UUID@test.example:443?type=xhttp&path=$xpe&mode=auto&security=tls&sni=test.example&alpn=h2&fp=firefox" "$TMP/out"
 for bad in "--xhttp-path /assets/v3/" "--xhttp-path nopath" "--sub-path /" "--target 127.0.0.1:443" "--sub-path /x/ --sub-json-path /x/"; do
   # shellcheck disable=SC2086
   "$PROJ/scripts/reality.sh" enable --no-apply $bad >/dev/null 2>&1; rc=$?

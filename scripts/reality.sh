@@ -63,10 +63,13 @@ cmd_panel() {
 [Инбаунд TCP + REALITY — «входная дверь» на 443]
   Protocol / Port ........ vless / 443, Listen IP пусто
   Transmission ........... TCP (RAW), Header type none
-  Security ............... Reality, Xver 0
+  Security ............... Reality, Show выкл., Xver 0
+  uTLS ................... firefox (или safari)
   Dest / Target .......... $target
   SNI / Server Names ..... $DOMAIN
-  Клиент ................. Flow xtls-rprx-vision
+  Short IDs, ключи ....... сгенерировать (Get New Cert), SpiderX /
+  Sniffing ............... вкл.
+  Клиент ................. Flow xtls-rprx-vision, subId — своё неочевидное значение
 EOF
   if [[ "$xe" == "on" ]]; then
     cat <<EOF
@@ -74,9 +77,26 @@ EOF
 [Инбаунд XHTTP за nginx]
   Protocol ............... vless, Listen IP ${xu%:*}, Port ${xu##*:}
   Transmission ........... XHTTP, Path $xp, Host пусто, Mode auto
-  Security ............... none (TLS делает nginx)
-  External Proxy ......... tls, $DOMAIN, 443
-  Клиент ................. Flow пусто, тот же subId, что у TCP-клиента
+  XMUX (если поле есть) .. вкл., Max Connections 1
+  Security ............... none — TLS снимает nginx, до Xray доходит h2c;
+                           в ссылке при этом security=tls, это не противоречие
+  Sniffing ............... вкл.
+
+  External Proxy — через JSON инбаунда, внутрь "streamSettings": { ... }:
+    "externalProxy": [
+      { "forceTls": "tls", "dest": "$DOMAIN", "port": 443, "remark": "", "sni": "$DOMAIN" }
+    ]
+  После сохранения откройте инбаунд снова и убедитесь, что блок на месте;
+  в ссылке клиента должно быть @$DOMAIN:443 и security=tls.
+
+  Клиент — не создавать нового (будет Duplicate subId), а привязать существующего:
+    TCP-клиент → «Linked Inbounds» → добавить xhttp → сохранить.
+    Flow оставить xtls-rprx-vision: для XHTTP панель убирает его сама.
+    В XHTTP-ссылке не должно быть flow=. Если есть — x-ui update
+    или включить у инбаунда xhttp опцию DisableFlow, если она есть.
+
+  Если externalProxy не сохраняется — ссылка вручную (UUID — id клиента):
+    vless://UUID@$DOMAIN:443?type=xhttp&path=${xp//\//%2F}&mode=auto&security=tls&sni=$DOMAIN&alpn=h2&fp=firefox#xhttp
 EOF
   else
     echo; echo "[XHTTP] выключен (XHTTP_ENABLED=$xe)"
