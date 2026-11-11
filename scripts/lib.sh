@@ -74,3 +74,27 @@ cert_fingerprint() {
 web_running() {
   [[ -n "$(dc ps --status running -q web 2>/dev/null)" ]]
 }
+
+# Записывает KEY=VALUE в .env: заменяет существующую строку или добавляет в конец.
+env_set() {
+  local key="$1" value="$2" file="$PROJECT_DIR/.env" tmp
+  [[ -f "$file" ]] || die "нет файла .env"
+  tmp="$(mktemp "$file.XXXXXX")"
+  awk -v k="$key" -v v="$value" '
+    BEGIN { done = 0 }
+    { sub(/\r$/, "") }
+    $0 ~ "^[[:space:]]*" k "=" { if (!done) { print k "=" v; done = 1 }; next }
+    { print }
+    END { if (!done) print k "=" v }
+  ' "$file" >"$tmp" && cat "$tmp" >"$file"
+  rm -f "$tmp"
+}
+
+# Удаляет строку KEY=… из .env (если есть).
+env_unset() {
+  local key="$1" file="$PROJECT_DIR/.env" tmp
+  [[ -f "$file" ]] || return 0
+  tmp="$(mktemp "$file.XXXXXX")"
+  awk -v k="$key" '{ sub(/\r$/, "") } $0 !~ "^[[:space:]]*" k "=" { print }' "$file" >"$tmp" && cat "$tmp" >"$file"
+  rm -f "$tmp"
+}

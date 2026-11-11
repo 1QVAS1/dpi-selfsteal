@@ -123,6 +123,48 @@ check "ошибка certbot: ненулевой код ($rc)" test $rc -ne 0
 check "минимальный PATH, запуск из /: код 0 ($rc)" test $rc -eq 0
 check "в логе есть дата" grep -Eq '^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}' "$PROJ/logs/renew.log"
 
+echo "reality.sh"
+ENVF="$PROJ/.env"
+envv() { grep -E "^$1=" "$ENVF" | tail -n 1 | cut -d= -f2-; }
+"$PROJ/scripts/reality.sh" enable --no-apply >"$TMP/out" 2>&1; rc=$?
+check "enable --no-apply: код 0 ($rc)" test $rc -eq 0
+check "enable: COMPOSE_FILE подключает override" test "$(envv COMPOSE_FILE)" = "docker-compose.yml:docker-compose.reality.yml"
+check "enable: target по умолчанию 127.0.0.1:9443" test "$(envv REALITY_TARGET_LISTEN)" = "127.0.0.1:9443"
+check "enable: случайный путь XHTTP вида /media/<hex>/" bash -c "[[ '$(envv XHTTP_PATH)' =~ ^/media/[0-9a-f]{10}/$ ]]"
+check "enable: пути подписки сгенерированы и различаются" bash -c "[[ -n '$(envv SUB_PATH)' && '$(envv SUB_PATH)' != '$(envv SUB_JSON_PATH)' ]]"
+check "enable: DOMAIN и почта не тронуты" grep -q '^DOMAIN=test.example$' "$ENVF"
+check "enable: подсказка для 3x-ui (Target и SNI)" bash -c "grep -q 'Dest / Target .* 127.0.0.1:9443' '$TMP/out' && grep -q 'SNI / Server Names .* test.example' '$TMP/out'"
+xp1="$(envv XHTTP_PATH)"; sp1="$(envv SUB_PATH)"
+"$PROJ/scripts/reality.sh" enable --no-apply >/dev/null 2>&1
+check "повторный enable: пути не меняются" bash -c "[[ '$(envv XHTTP_PATH)' == '$xp1' && '$(envv SUB_PATH)' == '$sp1' ]]"
+check "повторный enable: без дублей в .env" test "$(grep -c '^XHTTP_PATH=' "$ENVF")" -eq 1
+"$PROJ/scripts/reality.sh" enable --no-apply --no-xhttp --sub-path /mysub/ >/dev/null 2>&1
+check "enable --no-xhttp --sub-path: значения применены" bash -c "[[ '$(envv XHTTP_ENABLED)' == off && '$(envv SUB_PATH)' == /mysub/ ]]"
+"$PROJ/scripts/reality.sh" enable --no-apply --sub-json-path /mysubj/ >/dev/null 2>&1
+check "повторный enable без --xhttp не включает XHTTP обратно" test "$(envv XHTTP_ENABLED)" = "off"
+"$PROJ/scripts/reality.sh" enable --no-apply --xhttp >/dev/null 2>&1
+check "enable --xhttp включает XHTTP" test "$(envv XHTTP_ENABLED)" = "on"
+"$PROJ/scripts/reality.sh" panel >"$TMP/out" 2>&1
+check "panel: XMUX, Max Connections 1" grep -q "XMUX .* Max Connections 1" "$TMP/out"
+check "panel: блок externalProxy с доменом" grep -q '"externalProxy"' "$TMP/out"
+check "panel: externalProxy forceTls/dest/sni" grep -q '"forceTls": "tls", "dest": "test.example", "port": 443, .*"sni": "test.example"' "$TMP/out"
+check "panel: привязка клиента через Linked Inbounds" grep -q "Linked Inbounds" "$TMP/out"
+xpe="$(envv XHTTP_PATH)"; xpe="${xpe//\//%2F}"
+check "panel: ручная ссылка с закодированным путём и alpn=h2" grep -q "vless://UUID@test.example:443?type=xhttp&path=$xpe&mode=auto&security=tls&sni=test.example&alpn=h2&fp=firefox" "$TMP/out"
+for bad in "--xhttp-path /assets/v3/" "--xhttp-path nopath" "--sub-path /" "--target 127.0.0.1:443" "--sub-path /x/ --sub-json-path /x/"; do
+  # shellcheck disable=SC2086
+  "$PROJ/scripts/reality.sh" enable --no-apply $bad >/dev/null 2>&1; rc=$?
+  check "отказ для: $bad ($rc)" test $rc -ne 0
+done
+check "после отказов .env не испорчен" test "$(envv SUB_PATH)" = "/mysub/"
+"$PROJ/scripts/reality.sh" status >"$TMP/out" 2>&1
+check "status: режим reality" grep -q "Режим: reality" "$TMP/out"
+"$PROJ/scripts/reality.sh" disable --no-apply >/dev/null 2>&1
+check "disable: COMPOSE_FILE удалён" bash -c "! grep -q '^COMPOSE_FILE=' '$ENVF'"
+check "disable: параметры сохранены для повторного включения" test "$(envv SUB_PATH)" = "/mysub/"
+"$PROJ/scripts/reality.sh" status >"$TMP/out" 2>&1
+check "status: режим standard" grep -q "Режим: standard" "$TMP/out"
+
 echo
 echo "$pass passed, $failn failed"
 [[ $failn -eq 0 ]]
