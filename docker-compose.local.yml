@@ -1,4 +1,4 @@
-# CHOKEPOINT — локальный режим без домена: https://localhost:8443
+# Локальный режим без домена: https://localhost:8443
 # Самоподписанный сертификат создаётся автоматически при первом запуске.
 #
 #   docker compose -f docker-compose.local.yml up -d
@@ -7,15 +7,15 @@
 #
 # Отдельное имя проекта — не пересекается с боевым стеком.
 
-name: chokepoint-local
+name: site-local
 
 services:
   local-cert:
     image: certbot/certbot
-    entrypoint: ["python3", "/opt/chokepoint/selfsigned.py"]
+    entrypoint: ["python3", "/opt/certtools/selfsigned.py"]
     command: ["--out", "/certs/localhost", "--cn", "localhost", "--days", "825", "--if-missing"]
     volumes:
-      - ./scripts/selfsigned.py:/opt/chokepoint/selfsigned.py:ro
+      - ./scripts/selfsigned.py:/opt/certtools/selfsigned.py:ro
       - local-certs:/certs
 
   web:

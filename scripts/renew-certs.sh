@@ -41,6 +41,10 @@ docker compose version >/dev/null 2>&1 || fail 127 "нужен Docker Compose v2
 DOMAIN="$(env_get DOMAIN || true)"
 [[ -n "$DOMAIN" ]] || fail 2 "в .env не задан DOMAIN"
 export DOMAIN
+if hint="$(legacy_volume_hint 2>&1)"; then
+  log "$hint"
+  fail 3 "сертификат старой установки не перенесён в том нового проекта"
+fi
 
 mode="обычный"
 renew_args=(renew --webroot -w /var/www/certbot --quiet)
