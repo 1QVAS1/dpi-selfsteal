@@ -8,6 +8,7 @@
 set -Euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+unset INSTALL_DIR  # тест работает с копией проекта, а не с каталогом установки
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 SHIMS="$TMP/bin"; mkdir -p "$SHIMS"
@@ -68,14 +69,26 @@ check() { local name="$1"; shift; if "$@"; then ok "$name"; else bad "$name"; fi
 echo "cron.sh"
 "$PROJ/scripts/cron.sh" install >/dev/null
 "$PROJ/scripts/cron.sh" install >/dev/null
-check "install дважды → одна запись" test "$(grep -c '# chokepoint-renew' "$FAKE_CRONTAB")" -eq 1
-check "расписание: дважды в сутки, минута 0–59" grep -Eq "^([0-9]|[1-5][0-9]) 3,15 \* \* \* '.*/scripts/renew-certs.sh' >/dev/null 2>&1 # chokepoint-renew$" "$FAKE_CRONTAB"
+check "install дважды → одна запись" test "$(grep -c '# site-renew' "$FAKE_CRONTAB")" -eq 1
+check "расписание: дважды в сутки, минута 0–59" grep -Eq "^([0-9]|[1-5][0-9]) 3,15 \* \* \* '.*/scripts/renew-certs.sh' >/dev/null 2>&1 # site-renew$" "$FAKE_CRONTAB"
 printf '0 1 * * * /bin/true # чужая задача\n' >>"$FAKE_CRONTAB"
 "$PROJ/scripts/cron.sh" status >"$TMP/st"; grep -q "Расписание: установлено" "$TMP/st" && ok "status видит запись" || bad "status видит запись"
 "$PROJ/scripts/cron.sh" remove >/dev/null
-check "remove удаляет запись" bash -c "! grep -q chokepoint-renew '$FAKE_CRONTAB'"
+check "remove удаляет запись" bash -c "! grep -q site-renew '$FAKE_CRONTAB'"
 check "remove не трогает чужие задачи" grep -q "чужая задача" "$FAKE_CRONTAB"
 "$PROJ/scripts/cron.sh" remove >"$TMP/st"; grep -q "не найдена" "$TMP/st" && ok "повторный remove безопасен" || bad "повторный remove безопасен"
+# старая установка: метка chokepoint-renew и прежний путь → install заменяет, минута сохраняется
+printf "41 3,15 * * * '/root/old-dir/scripts/renew-certs.sh' >/dev/null 2>&1 # chokepoint-renew
+" >>"$FAKE_CRONTAB"
+"$PROJ/scripts/cron.sh" install >"$TMP/st"
+check "install после переезда: старая запись заменена" bash -c "! grep -q 'old-dir\|chokepoint-renew' '$FAKE_CRONTAB'"
+check "install после переезда: новый путь, минута сохранена" grep -Eq "^41 3,15 \* \* \* '$PROJ/scripts/renew-certs.sh' .*# site-renew$" "$FAKE_CRONTAB"
+check "install после переезда: одна запись" test "$(grep -c 'renew-certs.sh' "$FAKE_CRONTAB")" -eq 1
+check "install после переезда: чужие задачи на месте" grep -q "чужая задача" "$FAKE_CRONTAB"
+"$PROJ/scripts/cron.sh" remove >/dev/null
+# INSTALL_DIR задаёт каталог явно; неверный каталог — понятная ошибка
+INSTALL_DIR="$TMP/nowhere" "$PROJ/scripts/cron.sh" status >"$TMP/st" 2>&1; rc=$?
+check "INSTALL_DIR без docker-compose.yml: ошибка ($rc)" bash -c "[[ $rc -ne 0 ]] && grep -q 'INSTALL_DIR' '$TMP/st'"
 
 echo "renew-certs.sh"
 # 1) нет .env
@@ -145,7 +158,10 @@ check "повторный enable без --xhttp не включает XHTTP об
 "$PROJ/scripts/reality.sh" enable --no-apply --xhttp >/dev/null 2>&1
 check "enable --xhttp включает XHTTP" test "$(envv XHTTP_ENABLED)" = "on"
 "$PROJ/scripts/reality.sh" panel >"$TMP/out" 2>&1
-check "panel: XMUX, Max Connections 1" grep -q "XMUX .* Max Connections 1" "$TMP/out"
+check "panel: XMUX — Max Concurrency 16-32 по умолчанию" grep -q "Max Concurrency 16-32" "$TMP/out"
+check "panel: XMUX — Max Connections 1 как альтернатива" grep -q "Max Connections 1" "$TMP/out"
+check "panel: Padding Bytes 100-1000" grep -q "Padding Bytes .* 100-1000" "$TMP/out"
+check "panel: externalProxy с fingerprint firefox" grep -q '"fingerprint": "firefox"' "$TMP/out"
 check "panel: блок externalProxy с доменом" grep -q '"externalProxy"' "$TMP/out"
 check "panel: externalProxy forceTls/dest/sni" grep -q '"forceTls": "tls", "dest": "test.example", "port": 443, .*"sni": "test.example"' "$TMP/out"
 check "panel: привязка клиента через Linked Inbounds" grep -q "Linked Inbounds" "$TMP/out"

@@ -35,6 +35,9 @@ load_env
 if [[ "$DOMAIN" == "example.org" || "$LETSENCRYPT_EMAIL" == *"@example.org" ]]; then
   die "в .env остались значения из примера — укажите свой домен и почту"
 fi
+if legacy_volume_hint; then
+  die "сертификат старой установки не перенесён. Если он не нужен, удалите том chokepoint_letsencrypt и запустите скрипт снова"
+fi
 
 want="production"; [[ $STAGING -eq 1 ]] && want="staging"
 log() { printf '\033[1;36m==>\033[0m %s\n' "$*"; }
@@ -51,7 +54,7 @@ wait_for_nginx() {
 
 make_dummy() {
   log "Создаю временный самоподписанный сертификат для $DOMAIN"
-  certbot_run --entrypoint python3 certbot /opt/chokepoint/selfsigned.py \
+  certbot_run --entrypoint python3 certbot /opt/certtools/selfsigned.py \
     --out "/etc/letsencrypt/live/$DOMAIN" --cn "$DOMAIN" --days 1 >/dev/null
 }
 

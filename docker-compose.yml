@@ -1,11 +1,13 @@
-# CHOKEPOINT — боевой режим: nginx + Let's Encrypt.
+# Боевой режим: nginx + Let's Encrypt.
 # Переменные DOMAIN и LETSENCRYPT_EMAIL берутся из файла .env (см. .env.example).
 #
 #   ./scripts/init-letsencrypt.sh      # первичный выпуск сертификата
 #   docker compose up -d               # запуск
 #   ./scripts/cron.sh install          # автопродление через cron на хосте
 
-name: chokepoint
+# Имя проекта задаёт имена томов: site_letsencrypt, site_certbot-webroot.
+# Старые установки назывались chokepoint — README, «Миграция со старого пути».
+name: site
 
 services:
   web:
@@ -41,7 +43,7 @@ services:
     volumes:
       - certbot-webroot:/var/www/certbot
       - letsencrypt:/etc/letsencrypt
-      - ./scripts/selfsigned.py:/opt/chokepoint/selfsigned.py:ro
+      - ./scripts/selfsigned.py:/opt/certtools/selfsigned.py:ro
 
 volumes:
   certbot-webroot:

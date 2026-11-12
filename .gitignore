@@ -3,3 +3,6 @@ docker-compose.override.yml
 logs/*
 !logs/.gitkeep
 node_modules/
+
+# Каталоги статических подписок (site/<openssl rand -hex 16>/) — личные ссылки, не коммитить
+site/[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]/

@@ -10,7 +10,9 @@ set -Eeuo pipefail
 # shellcheck source=scripts/lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
-MARKER="# chokepoint-renew"
+MARKER="# site-renew"
+# метка старых установок — install и remove заменяют и удаляют и её
+LEGACY_MARKER="# chokepoint-renew"
 RENEW="$PROJECT_DIR/scripts/renew-certs.sh"
 HOURS="3,15"
 
@@ -27,14 +29,24 @@ cron_line() {
 cmd_install() {
   require_cmd crontab flock
   chmod +x "$RENEW" "$PROJECT_DIR/scripts/"*.sh 2>/dev/null || true
-  local existing
+  local existing ours minute
   existing="$(current_crontab)"
-  if grep -qF "$MARKER" <<<"$existing"; then
+  ours="$(grep -F -e "$MARKER" -e "$LEGACY_MARKER" <<<"$existing" || true)"
+  if [[ "$ours" == "$(cron_line "$(cut -d" " -f1 <<<"$ours")")" ]]; then
     echo "Задача уже установлена:"
-    grep -F "$MARKER" <<<"$existing"
+    printf '%s\n' "$ours"
     return 0
   fi
-  local minute=$(( RANDOM % 60 ))
+  if [[ -n "$ours" ]]; then
+    # путь к проекту изменился (переезд каталога) или метка старая — заменяем, минуту сохраняем
+    minute="$(head -n 1 <<<"$ours" | cut -d" " -f1)"
+    [[ "$minute" =~ ^[0-9]+$ ]] || minute=$(( RANDOM % 60 ))
+    echo "Обновляю прежнюю задачу:"
+    printf '  %s\n' "$ours"
+    existing="$(grep -vF -e "$MARKER" -e "$LEGACY_MARKER" <<<"$existing" || true)"
+  else
+    minute=$(( RANDOM % 60 ))
+  fi
   { [[ -n "$existing" ]] && printf '%s\n' "$existing"; cron_line "$minute"; } | crontab -
   echo "Задача добавлена в crontab ($(id -un 2>/dev/null || echo "$USER")):"
   cron_line "$minute"
@@ -44,18 +56,18 @@ cmd_remove() {
   require_cmd crontab
   local existing
   existing="$(current_crontab)"
-  if ! grep -qF "$MARKER" <<<"$existing"; then
+  if ! grep -qF -e "$MARKER" -e "$LEGACY_MARKER" <<<"$existing"; then
     echo "Задача не найдена — удалять нечего."
     return 0
   fi
-  grep -vF "$MARKER" <<<"$existing" | crontab -
+  grep -vF -e "$MARKER" -e "$LEGACY_MARKER" <<<"$existing" | crontab -
   echo "Задача удалена из crontab."
 }
 
 cmd_status() {
   require_cmd crontab
   local line
-  line="$(current_crontab | grep -F "$MARKER" || true)"
+  line="$(current_crontab | grep -F -e "$MARKER" -e "$LEGACY_MARKER" || true)"
   if [[ -n "$line" ]]; then
     echo "Расписание: установлено"
     echo "  $line"

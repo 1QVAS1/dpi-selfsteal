@@ -1,16 +1,22 @@
 #!/usr/bin/env bash
-# Общие функции для скриптов CHOKEPOINT. Подключается через `source`.
+# Общие функции для скриптов сайта. Подключается через `source`.
 # shellcheck shell=bash
 
 # cron запускает задачи с минимальным PATH — добавляем стандартные каталоги явно.
 export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin${PATH:+:$PATH}"
 
-# Каталог проекта вычисляется от расположения скрипта, а не от текущего каталога.
-PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+# Каталог установки. По умолчанию — тот, где лежат скрипты (рекомендуемый путь: /opt/site).
+# Переменная окружения INSTALL_DIR задаёт его явно — одна для всех скриптов.
+PROJECT_DIR="${INSTALL_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)}"
+PROJECT_DIR="${PROJECT_DIR%/}"
 export PROJECT_DIR
 LOG_DIR="$PROJECT_DIR/logs"
 
 die() { printf 'Ошибка: %s\n' "$*" >&2; exit 1; }
+
+if [[ -n "${INSTALL_DIR:-}" && ! -f "$PROJECT_DIR/docker-compose.yml" ]]; then
+  die "INSTALL_DIR=$INSTALL_DIR: в каталоге нет docker-compose.yml — укажите каталог, куда склонирован репозиторий"
+fi
 
 require_cmd() {
   local c
@@ -97,4 +103,30 @@ env_unset() {
   tmp="$(mktemp "$file.XXXXXX")"
   awk -v k="$key" '{ sub(/\r$/, "") } $0 !~ "^[[:space:]]*" k "=" { print }' "$file" >"$tmp" && cat "$tmp" >"$file"
   rm -f "$tmp"
+}
+
+# Имя Docker-проекта: из COMPOSE_PROJECT_NAME в .env или из `name:` в docker-compose.yml.
+compose_project() {
+  local p
+  p="$(env_get COMPOSE_PROJECT_NAME || true)"
+  printf '%s' "${p:-site}"
+}
+
+# Старые установки назывались «chokepoint», и сертификат лежит в томе chokepoint_letsencrypt.
+# Если он есть, а тома нового проекта нет — сертификат не перенесён (README, «Миграция
+# со старого пути»). Печатает подсказку и возвращает 0, если перенос нужен.
+legacy_volume_hint() {
+  local project new="" old="chokepoint_letsencrypt"
+  project="$(compose_project)"
+  [[ "$project" == "chokepoint" ]] && return 1
+  new="${project}_letsencrypt"
+  docker volume inspect "$old" >/dev/null 2>&1 || return 1
+  docker volume inspect "$new" >/dev/null 2>&1 && return 1
+  cat >&2 <<MSG
+Найден сертификат старой установки (том $old), а тома $new нет.
+Перенесите сертификат, чтобы не выпускать его заново (README, «Миграция со старого пути»):
+  docker volume create $new
+  docker run --rm -v $old:/from:ro -v $new:/to alpine cp -a /from/. /to/
+MSG
+  return 0
 }

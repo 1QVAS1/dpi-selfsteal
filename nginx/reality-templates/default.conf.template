@@ -6,7 +6,7 @@
 #        клиент с ключом REALITY → прокси
 #        все остальные (браузеры, сканеры, XHTTP-клиенты) → target = этот nginx
 #   nginx ${REALITY_TARGET_LISTEN} (настоящий сертификат Let's Encrypt, HTTP/2)
-#        /                     → сайт CHOKEPOINT
+#        /                     → сайт-заглушка
 #        ${XHTTP_PATH}  → Xray, инбаунд XHTTP ${XHTTP_UPSTREAM}   (если XHTTP_ENABLED=on)
 #        ${SUB_PATH}  / ${SUB_JSON_PATH} → подписка 3x-ui ${SUB_UPSTREAM} (если SUB_ENABLED=on)
 #

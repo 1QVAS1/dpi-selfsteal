@@ -6,6 +6,8 @@
 2. [Структура репозитория](#2-структура-репозитория)
 3. [Требования](#3-требования)
 4. [Быстрый старт](#4-быстрый-старт)
+   - [Каталог установки](#каталог-установки)
+   - [Миграция со старого пути](#миграция-со-старого-пути)
 5. [Локальный запуск без домена](#5-локальный-запуск-без-домена)
 6. [TLS-сертификаты и автопродление](#6-tls-сертификаты-и-автопродление)
    - [Как это устроено](#как-это-устроено)
@@ -23,12 +25,23 @@
    - [Включение](#включение)
    - [Что ввести в 3x-ui](#что-ввести-в-3x-ui)
      - [Инбаунд XHTTP: подробнее](#инбаунд-xhttp-подробнее)
+     - [XMUX и `extra`](#xmux-и-extra)
    - [Переменные в `.env`](#переменные-в-env)
    - [Порядок при переходе между режимами](#порядок-при-переходе-между-режимами)
    - [Проверка](#проверка)
    - [Особенности](#особенности)
-9. [Пасхалка](#9-пасхалка)
-10. [Частые проблемы](#10-частые-проблемы)
+9. [Инфраструктура: вход и выход](#9-инфраструктура-вход-и-выход)
+   - [Зачем](#зачем)
+   - [Схема](#схема)
+   - [Типы серверов](#типы-серверов)
+   - [Сервер B: `setup-exit.sh`](#сервер-b-setup-exitsh)
+   - [Настройка 3x-ui на входе](#настройка-3x-ui-на-входе)
+   - [Ссылки и подписка](#ссылки-и-подписка)
+   - [Клиенты](#клиенты)
+   - [Замена заблокированного входа](#замена-заблокированного-входа)
+   - [Сайт-заглушка для боевого сервера](#сайт-заглушка-для-боевого-сервера)
+10. [Пасхалка](#10-пасхалка)
+11. [Частые проблемы](#11-частые-проблемы)
 
 ## 1. О проекте
 
@@ -46,6 +59,8 @@
 Сайт — чистая статика: HTML, CSS и vanilla JS на ES-модулях, без сборщиков. Всё нужное лежит локально, во время работы страница не обращается к внешним доменам. В Docker сайт раздаёт nginx с HTTPS от Let's Encrypt.
 
 Актуально на **10.11.2026**.
+
+Кроме самого сайта, в репозитории есть режим «сайт-заглушка для REALITY» в 3x-ui (раздел 8) и всё для схемы «вход ≠ выход»: скрипт выходного сервера и описание настройки (раздел 9, подробная инструкция — [docs/vpn-tspu-guide.md](docs/vpn-tspu-guide.md)). Для боевого входного сервера лендинг лучше заменить своим скучным сайтом, см. «Сайт-заглушка для боевого сервера» в разделе 9.
 
 ## 2. Структура репозитория
 
@@ -70,17 +85,20 @@
 │   ├── renew-certs.sh          # продление и reload nginx (для cron)
 │   ├── cron.sh                 # install / remove / status / run для расписания продления
 │   ├── reality.sh              # enable / disable / status / panel для режима REALITY
+│   ├── setup-exit.sh           # настройка выходного сервера B (раздел 9), запускается на B
 │   ├── lib.sh                  # общие функции скриптов
 │   └── selfsigned.py           # временный самоподписанный сертификат (запускается в контейнере certbot)
 ├── tests/
 │   ├── easter-egg-counter.test.mjs  # тесты логики пасхалки (node, без зависимостей)
 │   ├── scroll-text.test.mjs         # сверка текста свитка с эталоном
 │   ├── nginx-templates.test.mjs     # рендер шаблонов nginx и проверка директив
-│   ├── scripts.test.sh              # тесты cron.sh и renew-certs.sh на заглушках
+│   ├── scripts.test.sh              # тесты cron.sh, renew-certs.sh и reality.sh на заглушках
+│   ├── setup-exit.test.sh           # тесты setup-exit.sh: разбор xray x25519, конфиг, повторный запуск
 │   └── fixtures/scroll-text.txt     # эталонный текст свитка
 ├── tools/
 │   ├── build-scroll.mjs        # генерирует разметку свитка из эталонного текста
 │   └── dev-server.mjs          # локальный просмотр без Docker (с той же CSP)
+├── docs/vpn-tspu-guide.md      # пошаговая инструкция «вход ≠ выход» (раздел 9)
 ├── research/notes.md           # исследование: каждый факт с источником и датой
 ├── logs/                       # сюда пишется renew.log
 ├── docker-compose.yml          # боевой режим: web (nginx) + certbot (profile)
@@ -109,8 +127,8 @@ getent hosts example.org     # подставьте свой домен: дол�
 ## 4. Быстрый старт
 
 ```bash
-git clone <URL-репозитория> chokepoint
-cd chokepoint
+sudo git clone <URL-репозитория> /opt/site
+cd /opt/site
 chmod +x scripts/*.sh
 
 cp .env.example .env
@@ -145,6 +163,49 @@ docker compose ps          # у web должен быть статус healthy
 Сайт доступен по адресу `https://ваш-домен/`.
 
 > **Почему сначала `init-letsencrypt.sh`, а потом `up`.** Конфиг nginx ссылается на файлы сертификата. Без них nginx не стартует. Скрипт создаёт временный сертификат, поднимает nginx, получает настоящий сертификат и перезагружает nginx. После этого `docker compose up -d` только убеждается, что контейнер работает. Скрипт идемпотентен, повторный запуск ничего не сломает.
+
+### Каталог установки
+
+Рекомендуемый каталог — `/opt/site`. Название репозитория в путях на сервере не используйте: путь вида `~/dpi-selfsteal` сам подсказывает, что это за сервер. По той же причине у Docker-проекта, томов и задач нейтральные имена: проект `site`, тома `site_letsencrypt` и `site_certbot-webroot`, сервис `web`, метка cron `# site-renew`, лог `logs/renew.log`.
+
+Скрипты сами находят каталог по своему расположению, поэтому работают из любого места. Чтобы указать каталог явно (например, при запуске из другого места или из своего юнита), задайте переменную `INSTALL_DIR` — она общая для всех скриптов:
+
+```bash
+INSTALL_DIR=/opt/site /opt/site/scripts/renew-certs.sh --dry-run
+```
+
+### Миграция со старого пути
+
+Старые установки лежали в каталоге с названием репозитория (например, `~/dpi-selfsteal`), Docker-проект назывался `chokepoint`, а сертификат хранился в томе `chokepoint_letsencrypt`. Перенос без перевыпуска сертификата:
+
+```bash
+# 1. Остановить стек СТАРЫМ кодом, до git pull (тома при этом сохраняются; флаг -v не указывать)
+cd ~/dpi-selfsteal
+docker compose down
+
+# 2. Перенести каталог и обновить код
+sudo mv ~/dpi-selfsteal /opt/site
+cd /opt/site
+git pull
+
+# 3. Скопировать сертификат в том нового проекта
+docker volume create site_letsencrypt
+docker run --rm -v chokepoint_letsencrypt:/from:ro -v site_letsencrypt:/to alpine cp -a /from/. /to/
+
+# 4. Поднять и проверить
+docker compose up -d
+docker compose ps                        # web — healthy
+./scripts/renew-certs.sh --dry-run       # продление работает
+
+# 5. Расписание продления: install заменит старую запись (новый путь и метка, минута сохранится)
+./scripts/cron.sh install
+```
+
+- Если `git pull` уже сделан и шаг 1 не останавливает контейнеры, остановите старый проект по имени: `docker compose -p chokepoint down`.
+- В режиме REALITY настройки лежат в `.env` и переезжают вместе с каталогом. После шага 4 проверьте `./scripts/reality.sh status`.
+- Если продление было на systemd, отключите старые юниты и создайте новые по разделу 6: `sudo systemctl disable --now chokepoint-renew.timer && sudo rm /etc/systemd/system/chokepoint-renew.{service,timer} && sudo systemctl daemon-reload`.
+- Пока сертификат не перенесён, `init-letsencrypt.sh`, `renew-certs.sh` и `reality.sh` останавливаются с подсказкой, а не выпускают сертификат заново.
+- Когда всё работает, старые тома можно удалить: `docker volume rm chokepoint_letsencrypt chokepoint_certbot-webroot`.
 
 ## 5. Локальный запуск без домена
 
@@ -198,7 +259,7 @@ node tools/dev-server.mjs 8000      # http://localhost:8000
 ### Включить, проверить, отключить
 
 ```bash
-./scripts/cron.sh install    # запись вида: 17 3,15 * * * '/путь/scripts/renew-certs.sh' >/dev/null 2>&1 # chokepoint-renew
+./scripts/cron.sh install    # запись вида: 17 3,15 * * * '/путь/scripts/renew-certs.sh' >/dev/null 2>&1 # site-renew
 ./scripts/cron.sh status     # запись и последние строки лога
 crontab -l                   # убедиться напрямую
 ./scripts/cron.sh remove     # отключить
@@ -226,7 +287,7 @@ tail -n 50 logs/renew.log
 
 ```bash
 . ./.env
-docker run --rm -v chokepoint_letsencrypt:/etc/letsencrypt:ro alpine/openssl \
+docker run --rm -v site_letsencrypt:/etc/letsencrypt:ro alpine/openssl \
   x509 -enddate -noout -in "/etc/letsencrypt/live/$DOMAIN/fullchain.pem"
 ```
 
@@ -245,28 +306,28 @@ echo | openssl s_client -connect "$DOMAIN:443" -servername "$DOMAIN" 2>/dev/null
 
 ### Вариант с systemd timer вместо cron
 
-Если вы предпочитаете systemd, не включайте cron (`./scripts/cron.sh remove`). Вместо него создайте два файла, заменив `/opt/chokepoint` на путь к проекту.
+Если вы предпочитаете systemd, не включайте cron (`./scripts/cron.sh remove`). Вместо него создайте два файла. `/opt/site` — каталог установки; если у вас другой, замените.
 
-`/etc/systemd/system/chokepoint-renew.service`:
+`/etc/systemd/system/site-renew.service`:
 
 ```ini
 [Unit]
-Description=CHOKEPOINT: продление сертификата Let's Encrypt
+Description=Продление сертификата Let's Encrypt
 Wants=network-online.target docker.service
 After=network-online.target docker.service
 
 [Service]
 Type=oneshot
-ExecStart=/opt/chokepoint/scripts/renew-certs.sh
+ExecStart=/opt/site/scripts/renew-certs.sh
 # если проект принадлежит обычному пользователю из группы docker:
 # User=deploy
 ```
 
-`/etc/systemd/system/chokepoint-renew.timer`:
+`/etc/systemd/system/site-renew.timer`:
 
 ```ini
 [Unit]
-Description=CHOKEPOINT: продление сертификата дважды в сутки
+Description=Продление сертификата дважды в сутки
 
 [Timer]
 OnCalendar=*-*-* 03,15:00:00
@@ -281,10 +342,10 @@ WantedBy=timers.target
 
 ```bash
 sudo systemctl daemon-reload
-sudo systemctl enable --now chokepoint-renew.timer
-systemctl list-timers chokepoint-renew.timer
-sudo systemctl start chokepoint-renew.service     # ручной запуск
-journalctl -u chokepoint-renew.service -n 50
+sudo systemctl enable --now site-renew.timer
+systemctl list-timers site-renew.timer
+sudo systemctl start site-renew.service     # ручной запуск
+journalctl -u site-renew.service -n 50
 ```
 
 ## 7. Обновление контента
@@ -345,6 +406,7 @@ node tests/easter-egg-counter.test.mjs
 node tests/scroll-text.test.mjs
 node tests/nginx-templates.test.mjs
 bash tests/scripts.test.sh     # только на машине без настоящего crontab: тест подменяет crontab заглушкой
+bash tests/setup-exit.test.sh  # setup-exit.sh на заглушках (xray, ufw, systemctl); нужен node
 ```
 
 ## 8. Режим «сайт-заглушка для REALITY» (3x-ui)
@@ -364,13 +426,15 @@ Xray (3x-ui), инбаунд VLESS + TCP + REALITY (Vision), 0.0.0.0:443
    │  все остальные (браузеры, сканеры, XHTTP-клиенты) → target
    ▼
 nginx 127.0.0.1:9443 (сертификат Let's Encrypt, HTTP/2)   ← этот репозиторий
-   ├── /                 → сайт CHOKEPOINT
+   ├── /                 → сайт-заглушка (и статические подписки /TOKEN/*.txt, раздел 9)
    ├── XHTTP_PATH        → Xray, инбаунд XHTTP, 127.0.0.1:2023 (grpc_pass)
    ├── SUB_PATH          → подписка 3x-ui, 127.0.0.1:2096
    └── SUB_JSON_PATH     → JSON-подписка 3x-ui, 127.0.0.1:2096
 
 nginx 0.0.0.0:80 → ACME-челлендж Let's Encrypt и 301-редирект на https
 ```
+
+Клиенты подключаются через XHTTP. TCP-Reality-инбаунд на 443 нужен как фронт: он передаёт в nginx всех без ключа. Его ссылку клиентам не раздают (раздел 9).
 
 Что меняется по сравнению с обычным режимом (`docker-compose.reality.yml`):
 
@@ -422,20 +486,25 @@ cp .env.example .env             # если ещё не сделано; укаж
 | --- | --- | --- |
 | Инбаунд `tcp-reality` | Protocol / Port | `vless` / `443`, Listen IP пусто |
 |  | Transmission / Security | `TCP` (RAW), `Reality`, Xver `0` |
-|  | uTLS | `firefox` (или `safari`) |
+|  | uTLS | `firefox` |
 |  | Dest / Target | `127.0.0.1:9443` (`REALITY_TARGET_LISTEN`) |
 |  | SNI / Server Names | ваш `DOMAIN` |
+|  | Sniffing | `http`, `tls`, `quic`, Route Only |
 |  | Клиент | Flow `xtls-rprx-vision`, свой неочевидный subId |
 | Инбаунд `xhttp` | Listen IP / Port | `127.0.0.1` / `2023` (`XHTTP_UPSTREAM`) |
 |  | Transmission / Path | `XHTTP`, путь `XHTTP_PATH`, Host пусто, Mode `auto` |
-|  | XMUX (если поле есть) | вкл., Max Connections `1` |
+|  | Padding Bytes | `100-1000` |
+|  | XMUX | вкл.: Max Concurrency `16-32` **или** Max Connections `1`, см. [XMUX и `extra`](#xmux-и-extra) |
+|  | Sniffing | `http`, `tls`, `quic`, Route Only |
 |  | Security | `none`: TLS снимает nginx |
-|  | External Proxy | блок `externalProxy` в JSON инбаунда, см. ниже |
+|  | External Proxy | блок `externalProxy` с `fingerprint` в JSON инбаунда, см. ниже |
 |  | Клиент | не создавать: привязать TCP-клиента через «Linked Inbounds» |
 | Настройки → Подписка | Listen IP / Порт | `127.0.0.1` / `2096` (`SUB_UPSTREAM`) |
 |  | URI Path | `SUB_PATH` |
 |  | Reverse Proxy URI | `https://DOMAIN` + `SUB_PATH` (для JSON — `SUB_JSON_PATH`) |
 |  | Сертификат и ключ | пусто |
+
+Подписку через сервис 3x-ui можно оставить, но рекомендуемый вариант — статический файл в каталоге сайта (раздел 9, «Ссылки и подписка»).
 
 #### Инбаунд XHTTP: подробнее
 
@@ -449,15 +518,19 @@ cp .env.example .env             # если ещё не сделано; укаж
 
 TLS расшифровывает nginx, а до Xray доходит открытый HTTP/2. Если включить в инбаунде Security = TLS, Xray будет ждать от nginx TLS, которого нет, и ничего не заработает.
 
-**External Proxy.** Чтобы панель подставляла в ссылку и подписку `DOMAIN:443` и `security=tls` вместо `127.0.0.1:2023`, в инбаунде нужен блок `externalProxy`. В интерфейсе 3x-ui v3 отдельного поля для него может не быть, поэтому добавьте его в JSON инбаунда, внутрь `"streamSettings": { ... }`. `reality.sh panel` печатает этот блок с вашим доменом:
+**External Proxy.** Чтобы панель подставляла в ссылку и подписку `DOMAIN:443`, `security=tls` и отпечаток вместо `127.0.0.1:2023`, в инбаунде нужен блок `externalProxy`. В интерфейсе 3x-ui v3 отдельного поля для него может не быть, поэтому добавьте его в JSON инбаунда, внутрь `"streamSettings": { ... }`. `reality.sh panel` печатает этот блок с вашим доменом:
 
 ```json
 "externalProxy": [
-  { "forceTls": "tls", "dest": "example.org", "port": 443, "remark": "", "sni": "example.org" }
+  { "forceTls": "tls", "dest": "example.org", "port": 443, "remark": "", "sni": "example.org", "fingerprint": "firefox" }
 ]
 ```
 
-Сохраните и откройте инбаунд снова: блок должен остаться. В ссылке клиента («Инфо» / QR) должно быть `@example.org:443` и `security=tls`.
+- `dest` — **домен**, а не IP: тогда при замене сервера (раздел 9) достаточно сменить A-запись.
+- `fingerprint` — отпечаток uTLS. По исходникам MHSanaei/3x-ui (генерация ссылок `internal/sub`, ранее `sub/subService.go`; схема `externalProxy` во фронтенде) панель превращает его в `fp=firefox` в ссылках и подписке **начиная с версии 3.2.0**, и только когда `forceTls` даёт `tls`. Более старые версии поле сохраняют, но в ссылку не выводят.
+- В 3x-ui 3.4.0 и новее появилась страница **Хосты** (Hosts) с теми же полями: адрес, порт, SNI, Fingerprint, ALPN. Блок `externalProxy` в форме инбаунда там больше не редактируется (только через JSON), но продолжает работать. Если для инбаунда заведён хост, панель строит ссылки по нему, а не по `externalProxy`.
+
+Сохраните и откройте инбаунд снова: блок должен остаться. В ссылке клиента («Инфо» / QR) должно быть `@example.org:443`, `security=tls` и `fp=firefox`.
 
 **Клиент.** В 3x-ui v3 клиент — одна запись с одним subId, и её можно привязать к нескольким инбаундам. Второго клиента с тем же subId панель не создаст (`Duplicate subId`). Поэтому:
 
@@ -466,13 +539,32 @@ TLS расшифровывает nginx, а до Xray доходит открыт
 3. Flow оставьте `xtls-rprx-vision`: в актуальных версиях 3x-ui Flow хранится для каждого инбаунда отдельно, и для XHTTP панель его убирает сама.
 4. Проверьте XHTTP-ссылку: в ней не должно быть `flow=`. Если `flow=xtls-rprx-vision` есть, XHTTP работать не будет. Обновите панель (`x-ui update`) или включите у инбаунда `xhttp` опцию DisableFlow, если она есть в вашей версии.
 
-**Ссылка вручную.** Если `externalProxy` не сохраняется или ссылка всё равно с `127.0.0.1:2023`, соберите ссылку сами и добавьте её в клиент отдельно от подписки. Строку XHTTP с `127.0.0.1:2023` из подписки не используйте, TCP-строка в ней правильная. `reality.sh panel` печатает шаблон с вашими доменом и путём:
+**Ссылка вручную (запасной вариант).** Если `externalProxy` не сохраняется или ссылка всё равно с `127.0.0.1:2023`, соберите ссылку сами и добавьте её в клиент отдельно от подписки. Строку XHTTP с `127.0.0.1:2023` из подписки не используйте, TCP-строка в ней правильная. `reality.sh panel` печатает шаблон с вашими доменом и путём:
 
 ```text
 vless://UUID@example.org:443?type=xhttp&path=%2Fmedia%2F0123456789%2F&mode=auto&security=tls&sni=example.org&alpn=h2&fp=firefox#xhttp
 ```
 
-Если в сгенерированной панелью ссылке нет `fp=`, допишите `&fp=firefox` или выберите отпечаток firefox в профиле клиента.
+Если в сгенерированной панелью ссылке нет `fp=`, сначала проверьте поле `fingerprint` в `externalProxy` и версию панели (нужна 3.2.0+). Запасной вариант — дописать `&fp=firefox` к ссылке вручную или выбрать отпечаток firefox в профиле клиента. Отпечаток везде один — `firefox`: в ссылках, в Reality-инбаунде и в исходящем `exit` из `setup-exit.sh`.
+
+#### XMUX и `extra`
+
+XMUX задаётся в самом XHTTP-инбаунде: **Подключения → инбаунд `xhttp` → Редактировать → блок транспорта XHTTP → переключатель XMUX**. После включения появляются поля Max Concurrency, Max Connections, Max Reuse Times, Max Request Times, Max Reusable Secs и Keep Alive Period. Там же, выше, — Padding Bytes.
+
+| Поле | Значение |
+| --- | --- |
+| Max Concurrency (`maxConcurrency`) | `16-32` — по умолчанию, быстрее |
+| Max Connections (`maxConnections`) | пусто; `1` — если VPN пропадает на 1–10 минут из-за лимита TLS-рукопожатий; `2-4` — компромисс для мобильного интернета |
+| Max Reuse Times (`cMaxReuseTimes`) | `64-128`, не `0` |
+| Max Request Times (`hMaxRequestTimes`) | `600-900` |
+| Max Reusable Secs (`hMaxReusableSecs`) | `1800-3000` |
+| Padding Bytes (`xPaddingBytes`) | `100-1000` |
+
+Везде диапазоны, а не фиксированные числа: так размеры и интервалы меняются от соединения к соединению.
+
+**Max Concurrency и Max Connections взаимоисключающие**: заполняется одно, второе пустое. Форма панели сама очищает второе поле, но сохраняет его как `0` или пустую строку. После сохранения откройте JSON инбаунда и, если в блоке `xmux` есть `"maxConcurrency": ""` или `"maxConnections": ""`, удалите этот ключ: пустая строка вместо отсутствующего ключа может ломать разбор на клиенте.
+
+**Попадает ли это в ссылку.** По исходникам 3x-ui начиная с версии 3.2.0 панель кладёт настройки XHTTP-инбаунда, включая блок `xmux` и `xPaddingBytes`, в параметр `extra` ссылки `vless://` и подписки (плюс отдельный `x_padding_bytes` для клиентов семейства sing-box). Проверьте ссылку клиента: в ней должен быть `extra=` с `xmux`. В более старых версиях панели XMUX работает только после ручного добавления на клиенте (поле Extra в v2rayN) — лучше обновите панель (`x-ui update`).
 
 Остальные шаги инструкции выполняются в 3x-ui и на хосте, как в ней описано:
 - SSH-туннель к панели;
@@ -522,15 +614,221 @@ ss -tlnp
 
 ### Особенности
 
-- **XHTTP требует HTTP/2.** `grpc_pass` работает только поверх HTTP/2, поэтому в клиентской ссылке нужен `alpn=h2`. Это ограничение схемы из инструкции, а не этого репозитория.
+- **ALPN и HTTP/2.** На target-сервере (`listen ${REALITY_TARGET_LISTEN} ssl` в `nginx/reality-templates/default.conf.template`) включён `http2 on;`, а `grpc_pass` для XHTTP работает только поверх HTTP/2. Поэтому `alpn=h2` в ссылке оставляем: клиент сразу договаривается с nginx на HTTP/2. Выбор зависит от одной строки `http2 on;`: если её убрать, XHTTP через этот nginx перестанет работать совсем, и тогда пришлось бы менять схему, а не только ссылку.
 - **IP клиентов.** nginx видит все соединения с `127.0.0.1`, потому что их приводит Xray. Лимиты по IP в 3x-ui работают на TCP-инбаунде, для XHTTP — нет.
 - **Сертификат.** Продление идёт через порт 80, Xray в этом не участвует. Отключать инбаунд на 443 на время выпуска сертификата не нужно, в отличие от шага 2 инструкции.
 
-## 9. Пасхалка
+## 9. Инфраструктура: вход и выход
+
+Это обзор. Пошаговая инструкция со всеми проверками — в [docs/vpn-tspu-guide.md](docs/vpn-tspu-guide.md), ниже даны ссылки на её шаги.
+
+### Зачем
+
+Клиенты подключаются к серверу типа **A (вход)**, а в интернет их трафик уходит с сервера типа **B (выход)** у другого хостера. Сайты и приложения видят только IP B, адрес A нигде не раскрывается. Если B заблокируют в России, на работу это не повлияет: участок A→B проходит между зарубежными серверами. Если B упадёт, трафик идёт через Cloudflare WARP. Напрямую с адреса A в интернет не уходит ничего.
+
+### Схема
+
+```mermaid
+flowchart LR
+    K["Клиенты<br/>(устройства в РФ)"] -->|XHTTP| A["Вход A<br/>Xray :443 → nginx<br/>сайт, XHTTP, подписка"]
+    K -.->|если A заблокирован| C["Вход C, …<br/>другой хостер и домен"]
+    A -->|туннель| B["Выход B<br/>другой хостер<br/>443 открыт только для входов"]
+    C -->|туннель| B
+    B --> I["Интернет<br/>видит IP_B"]
+    A -.->|при сбое B| W["WARP (Cloudflare)"]
+    C -.->|при сбое B| W
+    W -.-> I
+    style B stroke-width:3px
+```
+
+То же текстом:
+
+```text
+Основной путь:   Клиент --XHTTP--> Вход A --туннель--> Выход B --> Интернет (видит IP_B)
+Ещё входы:       Клиент --XHTTP--> Вход C, D, … --туннель--> тот же выход B
+Сбой выхода B:   Клиент --XHTTP--> Вход A --> WARP (Cloudflare) --> Интернет
+Никогда:         Вход A --> Интернет напрямую
+```
+
+Входов может быть несколько, выход у них общий. Сплошные стрелки — обычный путь, пунктир — резервный.
+
+### Типы серверов
+
+| | Вход (A, C, …) | Выход (B) |
+| --- | --- | --- |
+| Что стоит | этот репозиторий (nginx в Docker, режим REALITY из раздела 8) и 3x-ui | только Xray, без панели (`scripts/setup-exit.sh`) |
+| Открытые порты | SSH, 80 (Let's Encrypt), 443 | SSH; 443 — только с IP входов |
+| Процессор и память | 2 vCPU, 2 ГБ | 1–2 vCPU, 1 ГБ |
+| Порт | 1 Гбит/с | 1 Гбит/с |
+| Трафик | от 5 ТБ в месяц | от 5 ТБ в месяц |
+| Система | Linux с Docker | Ubuntu 22.04 или 24.04 |
+
+Через каждый сервер трафик проходит дважды: на вход A он приходит от клиента и уходит на B, а B получает его от A и отправляет в интернет. Если хостер считает оба направления, 1 ТБ трафика клиентов расходует около 2 ТБ лимита на каждом сервере.
+
+Рекомендации:
+
+- 20–30 устройств на один вход;
+- A и B в одном регионе, задержка между ними до 5–10 мс (проверка на A: `ping IP_B`);
+- A и B — у разных хостеров.
+
+### Сервер B: `setup-exit.sh`
+
+Скрипт выполняет шаг 2 инструкции целиком: ставит `ufw`, `curl`, `openssl` и Xray (официальным скриптом XTLS/Xray-install), генерирует UUID туннеля, ключи x25519 и shortId, пишет `/usr/local/etc/xray/config.json` (VLESS + Reality + Vision на 443), проверяет конфиг, запускает Xray и закрывает 443 для всех, кроме входов. Работает на Ubuntu 22.04/24.04 от root. Репозиторий на B не нужен, достаточно одного файла:
+
+```bash
+# на входе A: скопировать скрипт на B
+scp /opt/site/scripts/setup-exit.sh root@IP_B:
+
+# на B
+bash setup-exit.sh --entry IP_A
+```
+
+| Команда или опция | Что делает |
+| --- | --- |
+| `--entry IP` | IP входа, которому разрешён 443; можно указать несколько раз |
+| `--ssh-port N` | SSH-порт B (по умолчанию берётся из настроек sshd) |
+| `--sni домен` | маскировочный домен для Reality, по умолчанию `www.cloudflare.com` |
+| `--address IP` | внешний IP B для вывода (по умолчанию определяется сам) |
+| `--harden-ssh` | вход по SSH только по ключу; если в `authorized_keys` нет ни одного ключа, скрипт откажется |
+| `--regenerate` | новые UUID и ключи; после этого обновите исходящее `exit` на всех входах |
+| `add-entry IP` | разрешить ещё один вход (сервер C или замена A) |
+| `remove-entry IP` | убрать вход из файрвола |
+| `show` | снова показать данные для 3x-ui |
+
+Что выведет скрипт:
+
+- готовый JSON исходящего `exit` для вкладки «Исходящие» в 3x-ui на входе: адрес B, UUID, `publicKey`, `shortId`, `serverName`, `fingerprint: firefox`, `flow: xtls-rprx-vision`;
+- те же значения таблицей, если в панели нет вкладки JSON и нужно заполнить форму;
+- список разрешённых входов.
+
+Значения сохраняются в `/root/exit-credentials.txt` (права `600`). Повторный запуск ничего не ломает: ключи берутся из этого файла и без `--regenerate` не меняются, новые `--entry` добавляются к сохранённым.
+
+Проверка на входе A: `nc -vz -w 5 IP_B 443` должна ответить `succeeded`. С любого другого адреса соединение должно зависать.
+
+### Настройка 3x-ui на входе
+
+Шаги 3–5 инструкции. Перед началом сохраните копию базы: `cp /etc/x-ui/x-ui.db ~/x-ui.db.bak-$(date +%F)`.
+
+1. **Sniffing.** В каждом входящем подключении (Reality и XHTTP): Sniffing включён, отмечены `http`, `tls`, `quic`, включён **Route Only**.
+2. **WARP.** «Настройки Xray → Исходящие → WARP → Создать → Добавить исходящее». Тег должен быть `warp`. Сохранить и перезапустить Xray.
+3. **Исходящее `exit`.** Добавляется **только на вкладке «Исходящие»** («Добавить исходящее» → вкладка JSON → вставить вывод `setup-exit.sh`, либо заполнить форму по таблице из вывода). **Не вставляйте его в расширенный шаблон:** новые версии 3x-ui при сохранении перезаписывают `outbounds` в шаблоне списком с вкладки «Исходящие», и вставленный блок пропадёт.
+4. **Расширенный шаблон** («Настройки Xray → Расширенный шаблон»). Сначала скопируйте весь текст в файл-резервную копию. Меняется только `routing`, и добавляются `observatory` и `dns`. Раздел `outbounds` и остальные не трогайте. Замените `"routing": { … }` целиком и добавьте после него (если `dns` или `observatory` уже есть, старые удалите):
+
+   ```json
+   "routing": {
+     "domainStrategy": "AsIs",
+     "balancers": [
+       { "tag": "out", "selector": [ "exit" ], "strategy": { "type": "leastPing" }, "fallbackTag": "warp" }
+     ],
+     "rules": [
+       { "type": "field", "inboundTag": [ "api" ], "outboundTag": "api" },
+       { "type": "field", "ip": [ "geoip:private" ], "outboundTag": "blocked" },
+       { "type": "field", "ip": [ "::/0" ], "outboundTag": "blocked" },
+       { "type": "field", "protocol": [ "bittorrent" ], "outboundTag": "blocked" },
+       { "type": "field", "network": "tcp,udp", "balancerTag": "out" }
+     ]
+   },
+   "observatory": {
+     "subjectSelector": [ "exit" ],
+     "probeUrl": "https://www.gstatic.com/generate_204",
+     "probeInterval": "30s",
+     "enableConcurrency": true
+   },
+   "dns": {
+     "tag": "dns-internal",
+     "servers": [ "https://1.1.1.1/dns-query", "https://8.8.8.8/dns-query" ],
+     "queryStrategy": "UseIPv4"
+   },
+   ```
+
+   > ⚠️ `fallbackTag` никогда не должен вести в `direct`: тогда при сбое B трафик пойдёт в интернет с адреса A, и вся схема теряет смысл. Только `warp`. По той же причине ни одно правило не должно вести в `direct`.
+
+5. **XHTTP-инбаунд:** Mode `auto`, Padding Bytes `100-1000`, XMUX по таблице из раздела 8. Path должен совпадать с `location` в nginx, то есть с `XHTTP_PATH` из `.env` (`./scripts/reality.sh panel`).
+6. **`externalProxy` с отпечатком** — блок в JSON XHTTP-инбаунда, с ним панель подставляет в ссылки домен, `security=tls`, `sni` и `fp=firefox`. Пример и версии 3x-ui — в разделе 8, «Инбаунд XHTTP: подробнее».
+
+**Проверка.**
+
+- В расширенном шаблоне в `outbounds` четыре блока: `exit`, `direct`, `blocked`, `warp`.
+- С клиента через VPN [ifconfig.me](https://ifconfig.me) показывает **IP B**.
+- Остановите Xray на B (`systemctl stop xray`) и подождите минуту: ifconfig.me показывает адрес Cloudflare. **Никогда не IP A.** Затем `systemctl start xray`.
+- На A исходящие соединения Xray идут только на `IP_B:443` и `127.0.0.1`: `ss -tnp state established | grep xray`.
+
+### Ссылки и подписка
+
+Шаги 5.2 и 7 инструкции.
+
+**Ссылка XHTTP**, которую панель показывает у клиента: после `@` стоит **домен**, есть `security=tls`, `sni=домен`, `fp=firefox` (берётся из `externalProxy`), `alpn=h2` и `extra=` с настройками XHTTP. `extra` и XMUX задаются в настройках XHTTP-инбаунда в 3x-ui (раздел 8), отдельно править ссылки не нужно.
+
+**Подписка — рекомендуемый вариант: статический файл** в каталоге сайта. Каталог со случайным именем, по файлу на человека:
+
+```bash
+TOKEN=$(openssl rand -hex 16)
+echo "Секретный каталог: $TOKEN"        # запишите
+mkdir -p /opt/site/site/$TOKEN
+nano /opt/site/site/$TOKEN/mama.txt
+```
+
+```text
+#profile-title: Home
+#profile-update-interval: 12
+#socks-auth-mode: auto
+#http-auth-mode: auto
+vless://...XHTTP-ссылка этого человека...
+```
+
+- Адрес подписки: `https://example.org/TOKEN/mama.txt`. nginx отдаёт файл как обычную статику, перезапуск не нужен.
+- `#socks-auth-mode: auto` и `#http-auth-mode: auto` заставляют Happ поставить пароль на локальный SOCKS/HTTP-прокси на телефоне, и другие приложения не смогут через него узнать про VPN.
+- У каждого человека свой клиент (свой UUID) в 3x-ui: при утечке видно, чей ключ светится.
+- **TCP-Reality-ссылку в подписку не включайте.** Reality-инбаунд остаётся на сервере как фронт на 443 и передаёт посторонние соединения в nginx, но клиенты подключаются через XHTTP.
+- Каталоги вида `site/<32 hex>/` занесены в `.gitignore`, `git pull` их не тронет.
+
+**Подписка через сервис 3x-ui** (`SUB_PATH` в разделе 8) продолжает работать. Директивы Happ к ней тоже применимы: заголовок, интервал обновления и пароль на локальный прокси задаются в настройках подписки панели (пароль на локальный прокси — начиная с 3x-ui 3.9.0, панель отдаёт его заголовками `Socks-Auth-Mode` и `Http-Auth-Mode`). Reality-инбаунд из такой подписки нужно исключить. Если ваша версия панели этого не умеет, используйте статический файл.
+
+### Клиенты
+
+- Весь трафик устройства идёт в VPN: режим «Глобально», без раздельной маршрутизации по доменам и без приложений-исключений.
+- На компьютерах — режим **TUN**, а не системный прокси.
+- Если большие страницы зависают, уменьшите MTU в настройках TUN до `1400`, а если не поможет, до `1380`.
+
+Подробности для Happ и v2rayN — шаг 9 инструкции.
+
+### Замена заблокированного входа
+
+Шаг 11.1 инструкции. Ссылки и подписка указывают на домен, поэтому клиентов перенастраивать не нужно:
+
+1. Новый VPS у другого хостера (или в другой подсети), файрвол: SSH, 80, 443.
+2. Docker и 3x-ui, затем `systemctl stop x-ui`.
+3. Перенести со старого входа `/etc/x-ui/x-ui.db` и каталог `/opt/site` (вместе с `.env` и подписками). Сертификат лежит не в каталоге, а в Docker-томе `site_letsencrypt`, его переносят отдельно (команды на новом сервере):
+
+   ```bash
+   scp -P SSH_PORT root@IP_A:/etc/x-ui/x-ui.db /etc/x-ui/x-ui.db
+   rsync -a -e "ssh -p SSH_PORT" root@IP_A:/opt/site/ /opt/site/
+   docker volume create site_letsencrypt
+   ssh -p SSH_PORT root@IP_A 'docker run --rm -v site_letsencrypt:/v:ro alpine tar -C /v -czf - .'      | docker run --rm -i -v site_letsencrypt:/v alpine tar -C /v -xzf -
+   systemctl start x-ui
+   cd /opt/site && docker compose up -d
+   ```
+
+   Если том перенести не удалось, после смены DNS (шаг 5) выпустите сертификат заново: `./scripts/init-letsencrypt.sh`.
+4. На B: `bash setup-exit.sh add-entry NEW_IP`.
+5. В DNS сменить A-запись домена на `NEW_IP`. TTL заранее поставьте 300 секунд.
+6. `./scripts/cron.sh install` на новом сервере, затем на B `bash setup-exit.sh remove-entry СТАРЫЙ_IP`.
+
+### Сайт-заглушка для боевого сервера
+
+Шаг 6 инструкции. Лендинг CHOKEPOINT из этого репозитория рассказывает о DPI и блокировках и одинаков у всех, кто развернул репозиторий. Для боевого входа его лучше заменить:
+
+- скучный уникальный сайт на бытовую тему (портфолио, блог, визитка мастерской), 3–5 страниц, без слов VPN, proxy, DPI, ТСПУ и без ссылок на этот репозиторий;
+- свои `404.html`, `favicon.ico`, `robots.txt`;
+- `server_tokens off` и `error_page 404 /404.html` в конфиге nginx уже есть.
+
+Файлы сайта кладутся в `/opt/site/site/`, перезапуск nginx не нужен.
+
+## 10. Пасхалка
 
 На сайте есть пасхалка.
 
-## 10. Частые проблемы
+## 11. Частые проблемы
 
 **Закрыт 80-й порт.** Let's Encrypt проверяет домен по HTTP на порту 80. Откройте его в файрволе сервера и в настройках облака: security group, firewall панели хостинга.
 
@@ -574,5 +872,11 @@ curl -s https://ifconfig.me    # IP сервера — должен совпад
 **Режим REALITY: в XHTTP-ссылке адрес `127.0.0.1:2023`.** В инбаунде `xhttp` нет блока `externalProxy`. Добавьте его в JSON инбаунда (см. «Инбаунд XHTTP: подробнее») или соберите ссылку вручную.
 
 **Режим REALITY: XHTTP не подключается, в логе Xray ошибка про flow.** В XHTTP-ссылке или конфиге остался `flow=xtls-rprx-vision`. Обновите панель (`x-ui update`) или включите у инбаунда `xhttp` опцию DisableFlow, если она есть.
+
+**После обновления скрипты пишут про том `chokepoint_letsencrypt`.** Docker-проект переименован в `site`, и сертификат старой установки остался в томе со старым именем. Перенесите его по разделу «Миграция со старого пути» (шаг 3), выпускать заново не нужно.
+
+**XHTTP перестал подключаться после настройки XMUX.** Проверьте JSON инбаунда: заполнено должно быть только одно из полей `maxConcurrency` и `maxConnections`, пустую строку `""` у второго удалите. Сверьте `xPaddingBytes` и `mode` в инбаунде и в ссылке клиента (параметр `extra`).
+
+**Через VPN ifconfig.me показывает IP входа.** Не применились правила из раздела 9: последнее правило должно вести в `balancerTag: out`, исходящее `exit` должно быть на вкладке «Исходящие», а `fallbackTag` — `warp`, не `direct`.
 
 **Режим REALITY: в подписке меньше серверов, чем ожидалось.** Инбаунд `xhttp` не привязан к клиенту через «Linked Inbounds» или выключен. Привяжите его и проверьте переключатели инбаундов.

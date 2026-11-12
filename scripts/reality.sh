@@ -64,12 +64,14 @@ cmd_panel() {
   Protocol / Port ........ vless / 443, Listen IP пусто
   Transmission ........... TCP (RAW), Header type none
   Security ............... Reality, Show выкл., Xver 0
-  uTLS ................... firefox (или safari)
+  uTLS ................... firefox
   Dest / Target .......... $target
   SNI / Server Names ..... $DOMAIN
   Short IDs, ключи ....... сгенерировать (Get New Cert), SpiderX /
-  Sniffing ............... вкл.
+  Sniffing ............... вкл.: http, tls, quic, Route Only
   Клиент ................. Flow xtls-rprx-vision, subId — своё неочевидное значение
+  Ссылку этого инбаунда клиентам не раздавать: он нужен как фронт на 443
+  (fallback в nginx), а клиенты подключаются через XHTTP.
 EOF
   if [[ "$xe" == "on" ]]; then
     cat <<EOF
@@ -77,17 +79,23 @@ EOF
 [Инбаунд XHTTP за nginx]
   Protocol ............... vless, Listen IP ${xu%:*}, Port ${xu##*:}
   Transmission ........... XHTTP, Path $xp, Host пусто, Mode auto
-  XMUX (если поле есть) .. вкл., Max Connections 1
+  Padding Bytes .......... 100-1000
+  XMUX ................... вкл.; заполняется ОДНО из двух полей, второе пустое:
+                             Max Concurrency 16-32 (по умолчанию)
+                             или Max Connections 1 (если VPN пропадает на 1–10 минут)
+                           Max Reuse Times 64-128, Max Request Times 600-900,
+                           Max Reusable Secs 1800-3000
   Security ............... none — TLS снимает nginx, до Xray доходит h2c;
                            в ссылке при этом security=tls, это не противоречие
-  Sniffing ............... вкл.
+  Sniffing ............... вкл.: http, tls, quic, Route Only
 
   External Proxy — через JSON инбаунда, внутрь "streamSettings": { ... }:
     "externalProxy": [
-      { "forceTls": "tls", "dest": "$DOMAIN", "port": 443, "remark": "", "sni": "$DOMAIN" }
+      { "forceTls": "tls", "dest": "$DOMAIN", "port": 443, "remark": "", "sni": "$DOMAIN", "fingerprint": "firefox" }
     ]
   После сохранения откройте инбаунд снова и убедитесь, что блок на месте;
-  в ссылке клиента должно быть @$DOMAIN:443 и security=tls.
+  в ссылке клиента должно быть @$DOMAIN:443, security=tls и fp=firefox
+  (fp= из externalProxy панель подставляет с версии 3.2.0).
 
   Клиент — не создавать нового (будет Duplicate subId), а привязать существующего:
     TCP-клиент → «Linked Inbounds» → добавить xhttp → сохранить.
@@ -95,7 +103,7 @@ EOF
     В XHTTP-ссылке не должно быть flow=. Если есть — x-ui update
     или включить у инбаунда xhttp опцию DisableFlow, если она есть.
 
-  Если externalProxy не сохраняется — ссылка вручную (UUID — id клиента):
+  Если externalProxy не сохраняется — запасной вариант, ссылка вручную (UUID — id клиента):
     vless://UUID@$DOMAIN:443?type=xhttp&path=${xp//\//%2F}&mode=auto&security=tls&sni=$DOMAIN&alpn=h2&fp=firefox#xhttp
 EOF
   else
@@ -111,6 +119,8 @@ EOF
   Сертификат и ключ ...... пусто (TLS делает nginx)
   Reverse Proxy URI ...... https://$DOMAIN$sp
   JSON-подписка .......... путь $sjp, Reverse Proxy URI https://$DOMAIN$sjp
+  Рекомендуемый вариант — статический файл подписки в каталоге сайта
+  (README, «Ссылки и подписка»).
 EOF
   else
     echo; echo "[Подписка] выключена (SUB_ENABLED=$se)"
@@ -141,6 +151,7 @@ cmd_status() {
 
 apply_compose() {
   require_compose
+  legacy_volume_hint && die "сначала перенесите сертификат старой установки"
   if [[ "$(cert_state)" == "none" ]]; then
     echo
     echo "Сертификата для $DOMAIN ещё нет — выпустите его (порт 80 должен быть открыт):"
